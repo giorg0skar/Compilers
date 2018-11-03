@@ -132,7 +132,7 @@ var_def:
 
 id:
   T_id { $$ = ast_idlist($1,NULL); }
-| T_id id { $$ = ast_idlist($1,$2)} //??
+| T_id id { $$ = ast_idlist($1,$2); } //??
 ;
 /*id:
   T_id { ids= new vector<string>(); ids->push_back($1); $$ = ids; }
@@ -142,7 +142,7 @@ id:
 stmt:
   "skip" { $$ = ast_skip(); }
 | l_value ":=" expr { $$ = ast_assign($1,$3); }
-| proc_call { $$ = $1; } //??
+| proc_call { $$ = $1; }
 | "exit"
 | "return" ':' expr { $$ = ast_return($3); }
 | "if" cond ':' block { $$ = ast_if($2,$4); }
