@@ -5,6 +5,7 @@
 
 typedef enum {
   PROGRAM, HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF, FUNC_DECL,
+  PROC_CALL, ID,
   SKIP, BREAK, CONT, LOOP, SEQ, IF, IF_ELSE,
   PLUS, MINUS, TIMES, DIV, MOD,
   NOT, AND, OR, EQ, LT, GT, LE, GE, NEQ,
@@ -26,7 +27,7 @@ typedef struct node {
 ast ast_id (char *c);
 ast ast_int_const (int n);
 ast ast_op (ast l, kind op, ast r);
-ast ast_loop(ast l, ast r);
+ast ast_loop(char* l, ast r);
 
 void ast_sem (ast t);
 

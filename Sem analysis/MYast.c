@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ast.h"
+#include "MYast.h"
 #include "error.h"
 #include "symbol.h"
 
@@ -186,7 +186,8 @@ SymbolEntry * lookup(char *c) {
 }
 
 SymbolEntry * insert(char c[], Type t) {
-  char name[];
+  size_t n = sizeof(c)/sizeof(c[0]);
+  char name[n];
   //name[0] = c;
   strcpy(name, c);
   return newVariable(name, t);

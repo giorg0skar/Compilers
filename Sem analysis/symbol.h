@@ -165,7 +165,7 @@ struct SymbolEntry_tag {
 typedef struct Scope_tag Scope;
 
 struct Scope_tag {
-    unsigned int   nestingLevel;             /* Βάθος φωλιάσματος      *
+    unsigned int   nestingLevel;             /* Βάθος φωλιάσματος      */
     unsigned int   negOffset;                /* Τρέχον αρνητικό offset */
     Scope        * parent;                   /* Περιβάλλουσα εμβέλεια  */
     SymbolEntry  * entries;                  /* Σύμβολα της εμβέλειας  */

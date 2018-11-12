@@ -12,7 +12,7 @@ vector<string> *ids;
 extern int linenumber;
 ast t;
 %}
- 
+
 %token T_and "and"
 %token T_as "as"
 %token T_begin "begin"
