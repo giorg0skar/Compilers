@@ -1,7 +1,7 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-#include "ast.h"
+#include "MYast.h"
 #include "symbol.h"
 #include <vector>
 #include <string>

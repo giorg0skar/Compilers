@@ -1,7 +1,7 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-#include "ast.h"
+//#include "ast.h"
 #include "symbol.h"
 #include <vector>
 #include <string>
@@ -10,9 +10,10 @@ void yyerror (const char *msg);
 
 vector<string> *ids; 
 extern int linenumber;
-ast t;
+//ast t;
 %}
 
+//%start program
 %token T_and "and"
 %token T_as "as"
 %token T_begin "begin"
