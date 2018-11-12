@@ -96,9 +96,10 @@ fpar_part:
 ;
 
 local_def:
-  func_def
-| func_decl
-| var_def
+  %empty
+| func_def local_def
+| func_decl local_def
+| var_def local_def
 ;
 
 var_def:
