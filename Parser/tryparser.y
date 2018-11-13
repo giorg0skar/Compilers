@@ -3,12 +3,13 @@
 #include <stdlib.h>
 //#include "ast.h"
 #include "symbol.h"
-#include <vector>
-#include <string>
+#include <string.h>
+//#include <vector>
+//#include <string>
 
 void yyerror (const char *msg);
 
-vector<string> *ids; 
+//vector<string> *ids; 
 extern int linenumber;
 //ast t;
 %}
@@ -71,6 +72,11 @@ header:
   T_id "is" data_type ':' fpar_def header_part
 ;
 
+header_part:
+  %empty 
+| ',' fpar_def header_part
+;
+
 fpar_def:
   id "as" fpar_type
 ;
@@ -103,6 +109,10 @@ local_def:
 | var_def local_def
 ;
 
+func_decl:
+  "decl" header
+;
+
 var_def:
   "var" id "is" type
 ;
@@ -130,7 +140,7 @@ stmt:
 
 if_part:
   %empty
-  "elif" cond ':' block if_part
+| "elif" cond ':' block if_part
 ;
 
 block:
@@ -145,8 +155,8 @@ proc_call:
 
 //gains a separate section because it's used often
 expr_part:
-  %empty
-  ',' expr expr_part
+  %empty {;}
+| ',' expr expr_part
 ;
 
 func_call:
@@ -208,6 +218,6 @@ void yyerror (const char *msg) {
 
 int main() {
     if (yyparse()) return 1;
-    printf("Parsing was succesfull!\n");
+    printf("Parsing was succesful!\n");
     return 0;
 }

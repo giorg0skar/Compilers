@@ -33,10 +33,71 @@ Char {singlequote}{1}.{singlequote}{1}
 %x MLCOMMENT
 %x STRING
 %x FINAL
+%s BLOCK
 %s SIMPLE
 %x NEWLINE
 
 %%
+	BEGIN(BLOCK);
+
+ /*--------------------------------------layout-------------------------------------- */
+
+<BLOCK><<EOF>>		{ if( blockcounter > 0) BEGIN(FINAL); }
+<BLOCK>" "		{ spacecounter++; }
+<BLOCK>\t 		{ spacecounter+=4; }
+<BLOCK>\n		{ spacecounter=0; linenumber++;
+					if (newline_block == 1) {    
+						newline_block = 0;
+						return T_begin;		
+					} 
+					else {
+						BEGIN(NEWLINE);
+					}
+				}
+<BLOCK>:		{ if (colon_block == 1) {
+				if (choice==0) {
+					choice=1;
+					char *yycopy = strdup( yytext );
+					for ( i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+					free(yycopy);
+					return yytext[0];
+			  	}
+			  	else {
+					choice=0;
+					colon_block = 0;
+					return T_begin;
+				}   		
+			  }
+			  else
+			  { return yytext[0]; }
+			}		  
+<BLOCK>"def" 		{ blockstart=1; newline_block = 1; push(spacecounter); blockcounter++; return T_def; }
+<BLOCK>"if"  		{ blockstart=1; colon_block = 1; push(spacecounter); blockcounter++; return T_if; }
+<BLOCK>"elif" 		{blockstart=1; colon_block = 1; push(spacecounter); blockcounter++; return T_elif; }
+<BLOCK>"else"		{ blockstart=1; colon_block = 1; push(spacecounter); blockcounter++; return T_else; }
+<BLOCK>"loop" 		{ blockstart=1; colon_block = 1; push(spacecounter); blockcounter++; return T_loop; }
+
+<NEWLINE>" "		{ spacecounter++ ; }
+<NEWLINE>\t 		{ spacecounter+=4; }
+<NEWLINE>\n			{ spacecounter=0; linenumber++;}
+<NEWLINE>[^ \t\n]	{ while(mystack[sp] >= spacecounter && sp > -1) { 
+						sp--; blockcounter--;
+						char *yycopy = strdup( yytext );
+						for ( i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+						free(yycopy);
+						return T_end;
+					 }
+					char *yycopy = strdup( yytext );
+					for ( i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+					free(yycopy);
+					BEGIN(BLOCK);
+					}
+<NEWLINE><<EOF>>		{ if( blockcounter > 0) BEGIN(FINAL); }
+
+<FINAL><<EOF>>		{ while (blockcounter!=0) printf("token=%d\n", CloseBlocks()); return T_eof;}
+
+ /*--------------------------------------end of layout-------------------------------------- */
+
 
 "and"			{ return T_and; }
 "as"			{ return T_as; }
@@ -66,18 +127,18 @@ Char {singlequote}{1}.{singlequote}{1}
 	/*comment handling*/
 "#"					{ BEGIN(SLCOMMENT); }
 <SLCOMMENT>[^\n]*	{ /* nothing */ }
-<SLCOMMENT>\n		{ linenumber++; BEGIN(INITIAL); }
+<SLCOMMENT>\n		{ linenumber++; BEGIN(BLOCK); }
 
 "(*"				{ commentcounter = 1; BEGIN(MLCOMMENT); }
 <MLCOMMENT>"(*"		{ commentcounter++; }
-<MLCOMMENT>"*)"		{ if(--commentcounter==0) BEGIN(INITIAL); }
+<MLCOMMENT>"*)"		{ if(--commentcounter==0) BEGIN(BLOCK); }
 <MLCOMMENT>\n		{ linenumber++; }
 <MLCOMMENT>"*"		{ /* nothing */ }
 <MLCOMMENT>[^*\n(]*	{ /* nothing */ }
 
 "\""				{ BEGIN(STRING); }
 <STRING>[^"]*		{ return T_string; }
-<STRING>\"			{ BEGIN(INITIAL); }
+<STRING>\"			{ BEGIN(BLOCK); }
 
 "<"				{ return T_less; }
 ">"				{ return T_greater; }
@@ -88,7 +149,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
 	/*extra regular expression-whenever you find the following return the ascii character*/
 
-[(),:=+\-* /%!&|]	{ return yytext[0]; }
+[(),:=+\-*/%!&|]	{ return yytext[0]; }
 
 "["			{ return yytext[0]; }
 "]"			{ return yytext[0]; }

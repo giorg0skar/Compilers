@@ -1,6 +1,46 @@
 %{
-#include "tryparser.h"
+//#include "tryparser.h"
+#include <stdio.h>
+//#include "y.tab.h"
+
+//----defining to test lexer alone
 #define T_eof 0
+#define T_and 1000
+#define T_as 1001
+#define T_begin 1002
+#define T_break 1003
+#define T_byte 1004
+#define T_continue 1005
+#define T_decl 1006
+#define T_def 1007
+#define T_elif 1008
+#define T_else 1009
+#define T_end 1010
+#define T_exit 1011
+#define T_false 1012
+#define T_if 1013
+#define T_is 1014
+#define T_int 1015
+#define T_loop 1016
+#define T_not 1017
+#define T_or 1018
+#define T_ref 1019
+#define T_return 1020
+#define T_skip 1021
+#define T_true 1022
+#define T_var 1023
+#define T_intconst 1024
+#define T_char 1025
+#define T_id 1026
+#define T_string 1027
+#define T_greater 1028
+#define T_less 1029
+#define T_greatereq 1030
+#define T_lesseq 1031
+#define T_noteq 1032
+#define T_assign 1033
+
+//----defining done
 
 int choice=0;              //if choice==1 then we have read a keyword that begins a block
 int blockstart=0;
@@ -37,6 +77,8 @@ Char {singlequote}{1}.{singlequote}{1}
 %x NEWLINE
 
 %%
+
+<<EOF>> 		{ return T_eof; }
 
 "and"			{ return T_and; }
 "as"			{ return T_as; }
@@ -88,24 +130,30 @@ Char {singlequote}{1}.{singlequote}{1}
 
 	/*extra regular expression-whenever you find the following return the ascii character*/
 
-[(),:=+\-* /%!&|]	{ return yytext[0]; }
+[(),:=+\-*/%!&|]	{ return yytext[0]; }
 
 "["			{ return yytext[0]; }
 "]"			{ return yytext[0]; }
-	
+
 
 	/*identifiers*/
 
 {Intconst}		{ return T_intconst; }
 {Char}			{ return T_char; }
 {Id}			{ return T_id; }
-{W}	   			{ /* nothing */}
-<SIMPLE>{W}+		{ /* nothing */}
+{W}+	   		{ /* nothing */}
+
 \n			{ linenumber++; }
 
 .			{ yyerror("illegal character"); }
 
 %%
+
+void yyerror (const char *msg) {
+  fprintf(stderr, "Dana error: %s\n", msg);
+  fprintf(stderr, "Aborting, I've had enough with line %d...\n",linenumber);
+  exit(1);
+}
 
 void push(int element) {
 	sp++;
@@ -122,4 +170,13 @@ int pop(void) {
 int CloseBlocks(void) {
 	blockcounter--;
 	return T_end;
+}
+
+int main() {
+	int token;
+  	do {
+    	token = yylex();
+    	printf("token=%d, lexeme=\"%s\"\n", token, yytext);
+  	} while (token != T_eof);
+	return 0;
 }

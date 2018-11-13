@@ -199,8 +199,8 @@ expr:
 | expr '*' expr { $$ = ast_op($1,TIMES,$3); }
 | expr '/' expr { $$ = ast_op($1,DIV,$3); }
 | expr '%' expr { $$ = ast_op($1,MOD,$3); }
-| "true"  { $$ = $1;}
-| "false" { $$ = $1;}
+| "true"  { $$ = true;}
+| "false" { $$ = false;}
 | '!' expr { $$ = ast_not_expr($2);}
 | expr '&' expr { $$ = ast_and_expr($1,$3);}
 | expr '|' expr { $$ = ast_or_expr($1,$3);}
