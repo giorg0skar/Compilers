@@ -49,13 +49,14 @@ int commentcounter;
 int linenumber = 1;
 int spacecounter=0;
 int blockcounter=0;
-int newline_block = 0;
-int sameline_block = 0;
-int mystack[100];
-int sp = 0;                //sp points to the latest element pushed into the stack
+int newline_block = 0;		//if set then the following block begins in the next line
+int sameline_block = 0;		//if set then the following block begins in the same line after character ':'
+int mystack[100];			//stack contains how right in the editor each block starts
+int sp = -1;                 //sp points to the latest element pushed into the stack
 
 void push(int element);
 int pop();
+void isNextEOF(void);
 void yyerror (const char *msg);
 %}
 
@@ -74,76 +75,125 @@ Char {singlequote}{1}.{singlequote}{1}
 %x STRING
 %x FINAL
 %s SIMPLE
-%x BLOCK
 %x NEWLINE
 
 %%
 
-	BEGIN(BLOCK);
  /*------------------------layout-------------------------------------- */
-<BLOCK><<EOF>> 	{if(blockcounter > 0) BEGIN(FINAL);}
-<BLOCK>[ ]		{ spacecounter++; }
-<BLOCK>\t		{ spacecounter += 4; }
-<BLOCK>\n		{ spacecounter=0; linenumber++;
-				  /* def blocks always begin after newline character*/
-				  if(newline_block) {
-					  newline_block = 0;
-					  return T_begin;
-				  }
-				}
-<BLOCK>:		{ if(sameline_block) {
-				  	sameline_block = 0;
-					return T_begin;
-				  }
-				  else {
-					return yytext[0];
-				  }
-				}
-<BLOCK>"def"	{ blockstart=1; newline_block=1; mystack[sp++]=spacecounter; blockcounter++; return T_def; }
-<BLOCK>"if"		{ blockstart=1; sameline_block=1; mystack[sp++]=spacecounter; blockcounter++; return T_if; }
-<BLOCK>"elif"	{ blockstart=1; sameline_block=1; mystack[sp++]=spacecounter; blockcounter++; return T_elif; }
-<BLOCK>"else"	{ blockstart=1; sameline_block=1; mystack[sp++]=spacecounter; blockcounter++; return T_else; }
-<BLOCK>"loop"	{ blockstart=1; sameline_block=1; newline_block=1; mystack[sp++]=spacecounter; blockcounter++; return T_loop; }
 
-<FINAL><<EOF>>		{ while (blockcounter!=0) CloseBlocks(); return T_eof;}
+[ ]		{ isNextEOF(); spacecounter++; }
+\t		{ isNextEOF(); spacecounter += 4; }
+\n		{ spacecounter=0; linenumber++;
+			/* def blocks always begin after newline character*/
+			if (newline_block) {
+				newline_block = 0;
+				isNextEOF();
+				return T_begin;
+			}
+			else {
+				BEGIN(NEWLINE);
+				isNextEOF();
+			}
+		}
+:		{ if (sameline_block) {
+			if (choice == 0) {
+				/* when we encounter : before a block begins we set choice to 1 to return a begin token*/
+				choice = 1;
+				char *yycopy = strdup( yytext );
+				for ( int i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+				free(yycopy);
+				char t=yytext[0];
+				isNextEOF();
+				return t;
+			}
+			else {
+				sameline_block = 0;
+				choice = 0;
+				isNextEOF();
+				return T_begin;
+			}
+			}
+			else {
+			char t=yytext[0];
+			isNextEOF();
+			return t;
+			}
+		}
+"def"	{ blockstart=1; newline_block=1;  push(spacecounter); blockcounter++; isNextEOF(); return T_def; }
+"if"	{ blockstart=1; sameline_block=1; push(spacecounter); blockcounter++; isNextEOF(); return T_if; }
+"elif"	{ blockstart=1; sameline_block=1; push(spacecounter); blockcounter++; isNextEOF(); return T_elif; }
+"else"	{ blockstart=1; sameline_block=1; push(spacecounter); blockcounter++; isNextEOF(); return T_else; }
+"loop"	{ blockstart=1; sameline_block=1; push(spacecounter); blockcounter++; isNextEOF(); return T_loop; }
+
+ /* in NEWLINE each non-whitespace token we encounter may end a block*/
+<NEWLINE>[ ]	{ isNextEOF(); spacecounter++; }
+<NEWLINE>\t		{ isNextEOF(); spacecounter += 4; }
+<NEWLINE>\n		{ isNextEOF(); spacecounter=0; linenumber++; }
+<NEWLINE>[^ \t\n]	{ 	if ((spacecounter <= mystack[sp]) && (sp > -1) ) {
+							sp--; blockcounter--;
+							/* copy the token we scanned back to be scanned again*/
+							char *yycopy = strdup( yytext );
+							for ( int i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+							free(yycopy);
+							isNextEOF();
+
+							return T_end;
+					  	}
+					  	char *yycopy = strdup( yytext );
+					  	for ( int i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+						free(yycopy);
+						BEGIN(INITIAL);
+						isNextEOF();
+					}
+
+<FINAL><<EOF>>	{ return T_eof; }
+<FINAL>.		{	while (blockcounter > 0) {
+						blockcounter--;
+						char *yycopy = strdup( yytext );
+					  	for ( int i = yyleng - 1; i >= 0; --i ) unput( yycopy[i] );
+						free(yycopy);
+						return T_end;
+					}
+				}
 
  /*------------------------end of layout--------------------------------- */
-<<EOF>> 		{ while (blockcounter!=0) CloseBlocks(); return T_eof; }
 
-"and"			{ return T_and; }
-"as"			{ return T_as; }
-"begin"			{ return T_begin; }
-"break"			{ return T_break; }
-"byte"			{ return T_byte; }
-"continue"		{ return T_continue; }
-"decl"			{ return T_decl; }
-"def"			{ return T_def; }					
-"elif"			{ return T_elif; }
-"else"			{ return T_else; }
-"end"			{ return T_end; }
-"exit"			{ return T_exit; }
-"false"			{ return T_false; }
-"if"			{ return T_if; }
-"is"			{ return T_is; }
-"int"			{ return T_int; }
-"loop"			{ return T_loop; }
-"not"			{ return T_not; }
-"or"			{ return T_or; }
-"ref"			{ return T_ref; }
-"return"		{ return T_return;}
-"skip"			{ return T_skip; }
-"true"			{ return T_true; }
-"var"			{ return T_var; }
+<<EOF>> 		{ return T_eof; }
+
+"and"			{ isNextEOF(); return T_and; }
+"as"			{ isNextEOF(); return T_as; }
+"begin"			{ isNextEOF(); return T_begin; }
+"break"			{ isNextEOF(); return T_break; }
+"byte"			{ isNextEOF(); return T_byte; }
+"continue"		{ isNextEOF(); return T_continue; }
+"decl"			{ isNextEOF(); return T_decl; }
+ /*"def"			{ return T_def; } */		
+ /*"elif"			{ return T_elif; } */
+ /*"else"			{ return T_else; } */
+"end"			{ isNextEOF(); return T_end; }
+"exit"			{ isNextEOF(); return T_exit; }
+"false"			{ isNextEOF(); return T_false; }
+ /*"if"			{ return T_if; } */
+"is"			{ isNextEOF(); return T_is; }
+"int"			{ isNextEOF(); return T_int; }
+ /*"loop"			{ return T_loop; } */
+"not"			{ isNextEOF(); return T_not; }
+"or"			{ isNextEOF(); return T_or; }
+"ref"			{ isNextEOF(); return T_ref; }
+"return"		{ isNextEOF(); return T_return;}
+"skip"			{ isNextEOF(); return T_skip; }
+"true"			{ isNextEOF(); return T_true; }
+"var"			{ isNextEOF(); return T_var; }
 
 	/*comment handling*/
 "#"					{ BEGIN(SLCOMMENT); }
 <SLCOMMENT>[^\n]*	{ /* nothing */ }
-<SLCOMMENT>\n		{ linenumber++; BEGIN(INITIAL); }
+<SLCOMMENT>\n		{ linenumber++; spacecounter=0; BEGIN(INITIAL); }
 
 "(*"				{ commentcounter = 1; BEGIN(MLCOMMENT); }
 <MLCOMMENT>"(*"		{ commentcounter++; }
 <MLCOMMENT>"*)"		{ if(--commentcounter==0) BEGIN(INITIAL); }
-<MLCOMMENT>\n		{ linenumber++; }
+<MLCOMMENT>\n		{ linenumber++; spacecounter=0;}
 <MLCOMMENT>"*"		{ /* nothing */ }
 <MLCOMMENT>[^*\n(]*	{ /* nothing */ }
 
@@ -151,29 +201,29 @@ Char {singlequote}{1}.{singlequote}{1}
 <STRING>[^"]*		{ return T_string; }
 <STRING>\"			{ BEGIN(INITIAL); }
 
-"<"				{ return T_less; }
-">"				{ return T_greater; }
-"<="			{ return T_lesseq; }
-">="			{ return T_greatereq; }
-"<>"			{ return T_noteq; }
-":="			{ return T_assign; }
+"<"				{ isNextEOF(); return T_less; }
+">"				{ isNextEOF(); return T_greater; }
+"<="			{ isNextEOF(); return T_lesseq; }
+">="			{ isNextEOF(); return T_greatereq; }
+"<>"			{ isNextEOF(); return T_noteq; }
+":="			{ isNextEOF(); return T_assign; }
 
 	/*extra regular expression-whenever you find the following return the ascii character*/
 
-[(),:=+\-*/%!&|]	{ return yytext[0]; }
+[(),=+\-*/%!&|]	{ char t=yytext[0]; isNextEOF(); return t; }
 
-"["			{ return yytext[0]; }
-"]"			{ return yytext[0]; }
+"["			{ char t=yytext[0]; isNextEOF(); return t; }
+"]"			{ char t=yytext[0]; isNextEOF(); return t; }
 
 
 	/*identifiers*/
 
-{Intconst}		{ return T_intconst; }
-{Char}			{ return T_char; }
-{Id}			{ return T_id; }
-{W}+	   		{ /* nothing */}
+{Intconst}		{ isNextEOF(); return T_intconst; }
+{Char}			{ isNextEOF(); return T_char; }
+{Id}			{ isNextEOF(); return T_id; }
+\r				{ isNextEOF(); /* nothing */}
 
-\n			{ linenumber++; }
+ /*\n			{ linenumber++; } */
 
 .			{ yyerror("illegal character"); }
 
@@ -183,6 +233,22 @@ void yyerror (const char *msg) {
   fprintf(stderr, "Dana error: %s\n", msg);
   fprintf(stderr, "Aborting, I've had enough with line %d...\n",linenumber);
   exit(1);
+}
+
+//if the next character form input is EOF then go to FINAL state to prepare to close any open blocks 
+void isNextEOF(void) {
+	register int c;
+	c=input();
+	if (c!=EOF) {
+		unput(c);
+		return;
+	}
+	else {
+		BEGIN(FINAL);
+		unput('0');
+		return;
+	}
+	return;
 }
 
 void push(int element) {
@@ -195,11 +261,6 @@ int pop(void) {
 	int n= mystack[sp];
 	sp--;
 	return n;
-}
-
-int CloseBlocks(void) {
-	blockcounter--;
-	return T_end;
 }
 
 int main() {

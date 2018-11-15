@@ -25,7 +25,7 @@ extern int linenumber;
 %token T_def "def"
 %token T_elif "elif"
 %token T_else "else"
-%token T_end 
+%token T_end  "end"
 %token T_exit "exit"
 %token T_false "false"
 %token T_if "if"
