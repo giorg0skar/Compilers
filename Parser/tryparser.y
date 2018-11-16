@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 //#include "ast.h"
-#include "symbol.h"
+//#include "symbol.h"
 #include <string.h>
 //#include <vector>
 //#include <string>
@@ -46,9 +46,9 @@ extern int linenumber;
 %token T_noteq "<>"
 %token T_assign ":="
 %token T_name 
-%token T_char 
-%token T_intconst 
-%token T_string 
+%token T_char
+%token T_intconst
+%token T_string
 %token T_id
 %token T_char_const
 %token T_string_literal
@@ -73,7 +73,7 @@ header:
 ;
 
 header_part:
-  %empty 
+  %empty
 | ',' fpar_def header_part
 ;
 
@@ -83,7 +83,7 @@ fpar_def:
 
 data_type:
   "int"
-  "byte"
+| "byte"
 ;
 
 type:
@@ -120,6 +120,7 @@ var_def:
 id:
   T_id
 | T_id id
+;
 
 stmt:
   "skip"
@@ -145,17 +146,16 @@ if_part:
 
 block:
   "begin" stmt "end"
-| stmt T_auto_end
+| stmt T_end
 ;
 
 proc_call:
   T_id
-| T_id ':' expr expr_part //??
+| T_id ':' expr expr_part
 ;
 
-//gains a separate section because it's used often
 expr_part:
-  %empty {;}
+  %empty
 | ',' expr expr_part
 ;
 
@@ -167,7 +167,7 @@ func_call:
 l_value:
   T_id
 | T_string_literal
-| l_value '[' expr ']' //?? no idea
+| l_value '[' expr ']'
 ;
 
 expr:
@@ -213,6 +213,7 @@ x_cond:
 void yyerror (const char *msg) {
   fprintf(stderr, "Dana error: %s\n", msg);
   fprintf(stderr, "Aborting, I've had enough with line %d...\n",linenumber);
+  //fprintf(stderr, "text is %s\n", yytext);
   exit(1);
 }
 

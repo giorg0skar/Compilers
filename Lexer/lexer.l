@@ -170,7 +170,7 @@ Char {singlequote}{1}.{singlequote}{1}
  /*"def"			{ return T_def; } */		
  /*"elif"			{ return T_elif; } */
  /*"else"			{ return T_else; } */
-"end"			{ isNextEOF(); return T_end; }
+"end"			{ isNextEOF(); sp--; return T_end; }
 "exit"			{ isNextEOF(); return T_exit; }
 "false"			{ isNextEOF(); return T_false; }
  /*"if"			{ return T_if; } */
