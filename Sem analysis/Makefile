@@ -1,6 +1,7 @@
 .PHONY: clean distclean default
 
 CC=gcc
+CXX=g++
 CFLAGS=-Wall -g
 
 default: dana
@@ -13,7 +14,7 @@ lexer.o: lexer.c parser.h
 parser.h parser.c: parser.y
 	bison -dv -o parser.c parser.y
 
-dana: lexer.o parser.o ast.o general.o error.o symbol.o
+dana: lexer.o parser.o MYast.o general.o error.o symbol.o
 	$(CC) $(CFLAGS) -o dana $^ -lfl
 
 clean:

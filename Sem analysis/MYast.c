@@ -1,16 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+//#include <iostream>
+//#include <string>
+//#include <cstdio>
+//#include <cstdlib>
 #include "MYast.h"
 #include "error.h"
 #include "symbol.h"
 
 static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type t) {
   ast p;
-  if ((p = malloc(sizeof(struct node))) == NULL)
-    exit(1);
+  if ((p = malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
-  p->id = c;
+  p->id = (char *) malloc(sizeof(strlen(c + 1)));
+  //p->id = c;
+  strcpy(p->id, c);
   p->num = n;
   p->branch1 = l1;
   p->branch2 = l2;
@@ -78,6 +83,7 @@ ast ast_loop(char *s, ast l1) {
 }
 
 ast ast_seq(ast l1, ast l2) {
+  if (l2 == NULL) return l1;
   return ast_make(SEQ, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
@@ -180,14 +186,16 @@ activation_record current_AR = NULL;
 }*/
 
 SymbolEntry * lookup(char *c) {
-  char name[] = " ";
-  name[0] = c;
+  char *name;
+  name = (char *) malloc(strlen(c)+1);
+  //name[0] = c;
+  strcpy((char *) name, c);
   return lookupEntry(name, LOOKUP_ALL_SCOPES, true);
 }
 
-SymbolEntry * insert(char c[], Type t) {
-  size_t n = sizeof(c)/sizeof(c[0]);
-  char name[n];
+SymbolEntry * insert(char *c, Type t) {
+  char *name;
+  name = (char *) malloc(strlen(c)+1);
   //name[0] = c;
   strcpy(name, c);
   return newVariable(name, t);
