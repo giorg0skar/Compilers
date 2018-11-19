@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 //#include <iostream>
 //#include <string>
 //#include <cstdio>
@@ -41,8 +42,8 @@ ast ast_header_part(ast l1, ast l2) {
   return ast_make(HEADER_PART, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
-ast ast_fpar_def(ast l1, ast l2) {
-  return ast_make(FPAR_DEF, "\0", 0, l1, l2, NULL, NULL, NULL);
+ast ast_fpar_def(ast l1, Type t) {
+  return ast_make(FPAR_DEF, "\0", 0, l1, NULL, NULL, NULL, t);
 }
 
 ast ast_func_decl(ast l1) {
@@ -53,8 +54,12 @@ ast ast_decl (ast idlist, Type t) {
   return ast_make(DECL, "\0", 0, idlist, NULL, NULL, NULL, t);
 }
 
-ast ast_idlist(char *s) {
-  return ast_make(ID, s, 0, NULL, NULL, NULL, NULL, NULL);
+ast ast_var(ast idlist, Type t) {
+  return ast_make(VAR, "\0", 0, idlist, NULL, NULL, NULL, t);
+}
+
+ast ast_id(char *s, ast next) {
+  return ast_make(ID, s, 0, next, NULL, NULL, NULL, NULL);
 }
 
 ast ast_op (ast l, kind op, ast r) {
@@ -204,9 +209,6 @@ SymbolEntry * insert(char *c, Type t) {
 void ast_sem (ast t) {
   if (t==NULL) return;
   switch (t->k) {
-    case PROGRAM:
-      ast_sem(t->branch1);
-      return;
     case FUNC_DEF:
       openScope();
       ast_sem(t->branch1);
@@ -217,14 +219,83 @@ void ast_sem (ast t) {
       closeScope();
       return;
     case HEADER:
-      //??
-      ast_sem(t->branch1);
+      SymbolEntry *f = newFunction(t->id);
+      f->u.eFunction.resultType = t->type;
+      //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
+      //ast_sem(t->branch1);
+      ast temp;
+      Type parType;
+      PassMode mode;
+      if (t->branch1 != NULL) {
+        temp = t->branch1;    //temp now shows to fpar_def node. branch1 of that node is the beginning of the list of id nodes
+        parType = temp->type;
+        if (temp->type->kind == TYPE_POINTER ) mode = PASS_BY_REFERENCE;
+        else mode = PASS_BY_VALUE;
+        for(temp=temp->branch1; temp!=NULL; temp=temp->branch1) {
+          //we evaluate the semantics of each id node before we create the new entry. this is to avoid same name conflicts in the parameter definition
+          ast_sem(temp);
+          temp->type = parType;
+          SymbolEntry *par = newParameter(temp->id, parType, mode, f);
+        }
+      }
+
+      //ast_sem(t->branch2);
+
+      //if t->branch2 is NULL the following loop exits immediatly so i don't need an if-check
+      temp = t->branch2;    //temp now points to the header_part node. branch1 is a fpar_node and branch2 is another header_part node
+      ast headerpart;
+      for(headerpart=t->branch2; headerpart!=NULL; headerpart=headerpart->branch2) {
+        //for each headerpart we evaluate a fpar_def node like before
+        temp = headerpart->branch1;   //in every iteration temp points to the fpar_def node of the header_part node
+        parType = temp->type;
+        if (temp->type->kind == TYPE_POINTER ) mode = PASS_BY_REFERENCE;
+        else mode = PASS_BY_VALUE;
+        ast idnode;
+        for(idnode=temp->branch1; idnode!=NULL; idnode=idnode->branch1) {
+          ast_sem(idnode);
+          idnode->type = parType;
+          SymbolEntry *par = newParameter(idnode->id, parType, mode, f);
+        }
+      }
+
+      endFunctionHeader(f, t->type);
+      return;
+    case FPAR_DEF:
+      //this case may not need to get accessed. --> most likely.
+
+      //here one or more parameters are defined. all parameters have the same type
+      ast temp;
+      for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
+        ast_sem(temp);
+        //we set the parameter type as the given one
+        temp->type = t->type;
+      }
       return;
     case DECL: //?? may be wrong
-      ast temp= t->branch1;
-      while(temp->branch1 != NULL) {
-        insert(temp->id, t->type);
-        temp=temp->branch1;
+      // ast temp= t->branch1;
+      // while(temp->branch1 != NULL) {
+      //   insert(temp->id, t->type);
+      //   temp=temp->branch1;
+      // }
+      return;
+    case VAR:
+      //var definitions
+      ast temp = t->branch1;
+      for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
+        ast_sem(temp);
+        temp->type = t->type;
+        SymbolEntry *v = newVariable(temp->id, t->type);
+      }
+      return;
+    case ID:
+      //check if there's already a variable with the same name in current scope
+      char c = t->id[0];
+      if (!isalpha(c)) {
+        error("variable names have to start with a letter. variable is: %s\n", t->id);
+      }
+      SymbolEntry *e = lookupEntry(t->id,LOOKUP_CURRENT_SCOPE,false);
+      if (e!=NULL) {
+        error("there is already a variable with the name: $s\n", t->id);
       }
       return;
     case SKIP:

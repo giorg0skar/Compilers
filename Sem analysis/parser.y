@@ -77,7 +77,7 @@ header:
 
 header_part:
   %empty  { $$ = NULL; }
-| ',' fpar_def header_part
+| header_part ',' fpar_def  { $$ = ast_header_part($3,$1); }
 ;
 
 fpar_def:
@@ -95,9 +95,9 @@ type:
 ;
 
 fpar_type:
-  type
-| "ref" data_type
-| fpar_part
+  type  { $$ = $1; }
+| "ref" data_type { $$ = typePointer($2); }
+| fpar_part { $$ = $1; }
 ;
 
 fpar_part:
@@ -113,21 +113,21 @@ local_def:
 ;
 
 func_decl:
-  "decl" header
+  "decl" header   { $$ = ast_decl($2); }
 ;
 
 var_def:
-  "var" id "is" type
+  "var" id "is" type  { $$ = ast_var($2,$4); }
 ;
 
 id:
-  T_id
-| T_id id
+  T_id    { $$ = ast_id($1,NULL); }
+| T_id id { $$ = ast_id($1,$2); }
 ;
 
 stmt:
-  "skip"
-| l_value ":=" expr
+  "skip"  { $$ = ast_skip(); }
+| l_value ":=" expr { $$ = ast_assign($1,$3); }
 | proc_call
 | "exit"
 | "return" ':' expr
@@ -148,8 +148,8 @@ if_part:
 ;
 
 block:
-  "begin" stmt "end"
-| stmt T_end
+  "begin" stmt "end"  { $$ = ast_block($2); }
+| stmt T_end  { $$ = ast_block($1); }
 ;
 
 proc_call:
@@ -179,13 +179,13 @@ expr:
 | l_value
 | '(' expr ')'
 | func_call
-| '+' expr
-| '-' expr
-| expr '+' expr
-| expr '-' expr
-| expr '*' expr
-| expr '/' expr
-| expr '%' expr
+| '+' expr  { $$ = ast_op(ast_int_const(0),PLUS,$2); }  %prec UPLUS
+| '-' expr  { $$ = ast_op(ast_int_const(0),MINUS,$2); } %prec UMINUS
+| expr '+' expr { $$ = ast_op($1,PLUS,$3); }
+| expr '-' expr { $$ = ast_op($1,MINUS,$3); }
+| expr '*' expr { $$ = ast_op($1,TIMES,$3); }
+| expr '/' expr { $$ = ast_op($1,DIV,$3); }
+| expr '%' expr { $$ = ast_op($1,MOD,$3); }
 | "true"
 | "false"
 | '!' expr
