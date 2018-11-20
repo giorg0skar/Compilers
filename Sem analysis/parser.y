@@ -14,6 +14,13 @@ extern int linenumber;
 ast t;
 %}
 
+%union {
+  ast a;
+  char c;
+  int n;
+  Type t;
+}
+
 //%start program
 %token T_and "and"
 %token T_as "as"
@@ -57,6 +64,30 @@ ast t;
 %left '+' '-'
 %left '*' '/' '%'
 %left UMINUS UPLUS
+
+%type<a> program
+%type<a> func_def
+%type<a> header
+%type<a> header_part
+%type<a> fpar_def
+%type<t> data_type
+%type<t> type
+%type<t> fpar_type
+%type<t> fpar_part
+%type<a> local_def
+%type<a> func_decl
+%type<a> var_def
+%type<a> id
+%type<a> stmt
+%type<a> if_part
+%type<a> block
+%type<a> proc_call
+%type<a> expr_part
+%type<a> func_call
+
+%type<a> expr
+%type<a> cond
+%type<a> x_cond
 
 %%
 
@@ -174,7 +205,7 @@ l_value:
 ;
 
 expr:
-  T_intconst
+  T_intconst  { $$ = ast_int_const($1); }
 | T_char_const
 | l_value
 | '(' expr ')'
@@ -200,15 +231,15 @@ cond:
 
 x_cond:
   '(' x_cond ')'
-| "not" cond
-| cond "and" cond
-| cond "or" cond
-| expr '=' expr
-| expr "<>" expr
-| expr '<' expr
-| expr '>' expr
-| expr "<=" expr
-| expr ">=" expr
+| "not" cond      { $$ = ast_op(NULL,NOT,$2); }
+| cond "and" cond { $$ = ast_op($1,AND,$3); }
+| cond "or" cond  { $$ = ast_op($1,OR,$3); }
+| expr '=' expr   { $$ = ast_op($1,EQ,$3); }
+| expr "<>" expr  { $$ = ast_op($1,NE,$3); }
+| expr '<' expr   { $$ = ast_op($1,LT,$3); }
+| expr '>' expr   { $$ = ast_op($1,GT,$3); }
+| expr "<=" expr  { $$ = ast_op($1,LE,$3); }
+| expr ">=" expr  { $$ = ast_op($1,GE,$3); }
 ;
 
 %%
