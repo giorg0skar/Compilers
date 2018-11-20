@@ -16,8 +16,6 @@ ast t;
 
 %union {
   ast a;
-  char c;
-  int n;
   Type t;
 }
 
@@ -84,7 +82,7 @@ ast t;
 %type<a> proc_call
 %type<a> expr_part
 %type<a> func_call
-
+%type<a> l_value
 %type<a> expr
 %type<a> cond
 %type<a> x_cond
@@ -133,14 +131,15 @@ fpar_type:
 
 fpar_part:
   data_type '[' ']' { $$ = typeIArray($1); }
+| data_type '[' T_intconst ']'  { $$ = typeArray($3,$1); }
 | fpar_part '[' T_intconst ']'  { $$ = typeArray($3,$1); }
 ;
 
 local_def:
   %empty  { $$ = NULL; }
 | func_def local_def    { $$ = ast_seq($1,$2); }
-| func_decl local_def
-| var_def local_def
+| func_decl local_def   { $$ = ast_seq($1,$2); }
+| var_def local_def     { $$ = ast_seq($1,$2); }
 ;
 
 func_decl:
@@ -157,12 +156,12 @@ id:
 ;
 
 stmt:
-  "skip"  { $$ = ast_skip(); }
+  "skip"            { $$ = ast_skip(); }
 | l_value ":=" expr { $$ = ast_assign($1,$3); }
-| proc_call
+| proc_call         { $$ = $1; }
 | "exit"
 | "return" ':' expr
-| "if" cond ':' block
+| "if" cond ':' block   { $$ = ast_if($2,$4); }
 | "if" cond ':' block if_part "else" ':' block
 | "loop" ':' block
 | "loop" T_id ':' block
@@ -174,7 +173,7 @@ stmt:
 ;
 
 if_part:
-  %empty
+  %empty  { $$ = NULL; }
 | "elif" cond ':' block if_part
 ;
 
@@ -189,7 +188,7 @@ proc_call:
 ;
 
 expr_part:
-  %empty
+  %empty  { $$ = NULL; }
 | ',' expr expr_part
 ;
 
@@ -199,14 +198,14 @@ func_call:
 ;
 
 l_value:
-  T_id
+  T_id    { $$ = ast_id($1,NULL); }
 | T_string_literal
 | l_value '[' expr ']'
 ;
 
 expr:
-  T_intconst  { $$ = ast_int_const($1); }
-| T_char_const
+  T_intconst    { $$ = ast_int_const($1); }
+| T_char_const  { $$ = ast_char_const($1); }
 | l_value
 | '(' expr ')'
 | func_call
@@ -225,8 +224,8 @@ expr:
 ;
 
 cond:
-  expr
-| x_cond
+  expr    { $$ = $1; }
+| x_cond  { $$ = $1; }
 ;
 
 x_cond:

@@ -26,9 +26,9 @@ static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Typ
   return p;
 }
 
-ast ast_program(ast l1) {
-  return ast_make(PROGRAM, "\0", 0, l1, NULL, NULL, NULL, NULL);
-}
+// ast ast_program(ast l1) {
+//   return ast_make(PROGRAM, "\0", 0, l1, NULL, NULL, NULL, NULL);
+// }
 
 ast ast_func_def(ast header, ast local, ast block) {
   return ast_make(FUNC_DEF,"\0", 0, header, local, block, NULL, NULL);
@@ -46,12 +46,12 @@ ast ast_fpar_def(ast l1, Type t) {
   return ast_make(FPAR_DEF, "\0", 0, l1, NULL, NULL, NULL, t);
 }
 
-ast ast_func_decl(ast l1) {
-  return ast_make(FUNC_DECL, "\0", 0, l1, NULL, NULL, NULL, NULL);
-}
+// ast ast_func_decl(ast l1) {
+//   return ast_make(FUNC_DECL, "\0", 0, l1, NULL, NULL, NULL, NULL);
+// }
 
-ast ast_decl (ast idlist, Type t) {
-  return ast_make(DECL, "\0", 0, idlist, NULL, NULL, NULL, t);
+ast ast_decl (ast l1) {
+  return ast_make(DECL, "\0", 0, l1, NULL, NULL, NULL, NULL);
 }
 
 ast ast_var(ast idlist, Type t) {
@@ -71,8 +71,8 @@ ast ast_skip() {
 }
 
 //assign a value to a variable
-ast ast_assign(char* lvalue, ast r) {
-  return ast_make(ASSIGN, lvalue, 0, r, NULL, NULL, NULL, NULL);
+ast ast_assign(ast l, ast r) {
+  return ast_make(ASSIGN, "\0", 0, l, r, NULL, NULL, NULL);
 }
 
 ast ast_if (ast l, ast r) {
@@ -220,7 +220,8 @@ void ast_sem (ast t) {
       return;
     case HEADER:
       SymbolEntry *f = newFunction(t->id);
-      f->u.eFunction.resultType = t->type;
+      //f->u.eFunction.resultType = t->type;
+
       //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
       //ast_sem(t->branch1);
       ast temp;
@@ -271,16 +272,16 @@ void ast_sem (ast t) {
         temp->type = t->type;
       }
       return;
-    case DECL: //?? may be wrong
-      // ast temp= t->branch1;
-      // while(temp->branch1 != NULL) {
-      //   insert(temp->id, t->type);
-      //   temp=temp->branch1;
-      // }
+    case DECL:
+      //DECL is the same as HEADER + we declare the function as forward 
+      //branch1 points to header node
+      ast_sem(t->branch1);
+      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
+      forwardFunction(f);
       return;
     case VAR:
       //var definitions
-      ast temp = t->branch1;
+      ast temp;
       for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
         ast_sem(temp);
         temp->type = t->type;
@@ -299,6 +300,27 @@ void ast_sem (ast t) {
       }
       return;
     case SKIP:
+      return;
+    case ASSIGN:
+      //assign a value to a variable
+      ast_sem(t->branch1);
+      kind k = t->branch1->k;
+
+      //check if types are the same
+      if (!equalType(t->branch1->type, t->branch2->type)) {
+        error("type mismatch in assigning value to variable %s", t->branch1->id);
+      }
+      
+      if (k == ID) {
+        //we first check if a variable with that name exists
+        SymbolEntry *v = lookupEntry(t->branch1->id, LOOKUP_ALL_SCOPES, true);
+        if (v == NULL) {
+          error("no variable with name %s\n", t->branch1->id);
+        }
+      }
+      else if (k == ARR) {
+        //l_value is t[n] 
+      }
       return;
     case IF:
       ast_sem(t->branch1);
@@ -321,7 +343,6 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       return;
-      
     case PLUS:
       ast_sem(t->branch1);
       ast_sem(t->branch2);
