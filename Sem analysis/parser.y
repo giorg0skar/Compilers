@@ -200,7 +200,7 @@ func_call:
 l_value:
   T_id    { $$ = ast_id($1,NULL); }
 | T_string_literal
-| l_value '[' expr ']'
+| l_value '[' expr ']'  { $$ = ast_arr($1,$3); }
 ;
 
 expr:

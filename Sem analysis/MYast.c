@@ -92,6 +92,18 @@ ast ast_seq(ast l1, ast l2) {
   return ast_make(SEQ, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
+ast ast_block(ast l1) {
+  return ast_make(BLOCK, "\0", 0, l1, NULL, NULL, NULL, NULL);
+}
+
+ast ast_arr(ast l1, ast l2) {
+  return ast_make(ARR, "\0", 0, l1, l2, NULL, NULL, NULL);
+}
+
+ast ast_int_const(int num) {
+  return ast_make(INTCONST, "\0", num, NULL, NULL, NULL, NULL, NULL);
+}
+
 //not sure
 ast ast_proc_call(char *c, ast l1, ast l2) {
   return ast_make(PROC_CALL, c, 0, l1, l2, NULL, NULL, NULL);
@@ -310,13 +322,15 @@ void ast_sem (ast t) {
       if (!equalType(t->branch1->type, t->branch2->type)) {
         error("type mismatch in assigning value to variable %s", t->branch1->id);
       }
-      
       if (k == ID) {
         //we first check if a variable with that name exists
         SymbolEntry *v = lookupEntry(t->branch1->id, LOOKUP_ALL_SCOPES, true);
         if (v == NULL) {
           error("no variable with name %s\n", t->branch1->id);
         }
+        if (!equalType(v->u.eVariable.type, t->branch1->type)) error("type mismatch in assignment");
+        t->nesting_diff = currentScope->nestingLevel - v->nestingLevel;
+        t->offset = v->u.eVariable.offset;
       }
       else if (k == ARR) {
         //l_value is t[n] 
@@ -342,6 +356,20 @@ void ast_sem (ast t) {
     case SEQ:
       ast_sem(t->branch1);
       ast_sem(t->branch2);
+      return;
+    case ARR:
+      //branch1-> l_value, branch2-> expr
+      //case is an access to a[i] (element i of array a)
+      ast_sem(t->branch1);
+      ast temp = t->branch1;
+      while((temp->kind != ID) && (temp->kind != STRING_LIT)) temp = temp->branch1;
+      SymbolEntry *e = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
+      ast_sem(t->branch2);
+      if (!equalType(t->branch2->type, typeInteger)) error("tried to access an array with index not being integer");
+
+      if (e->entryType = ENTRY_VARIABLE) {
+        t->type = e->u.eVariable.type;
+      }
       return;
     case PLUS:
       ast_sem(t->branch1);
