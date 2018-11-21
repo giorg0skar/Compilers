@@ -96,6 +96,10 @@ ast ast_block(ast l1) {
   return ast_make(BLOCK, "\0", 0, l1, NULL, NULL, NULL, NULL);
 }
 
+ast ast_tid(char *s) {
+  return ast_make(TID, s, 0, NULL, NULL, NULL, NULL, NULL);
+}
+
 ast ast_arr(ast l1, ast l2) {
   return ast_make(ARR, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
@@ -110,7 +114,7 @@ ast ast_proc_call(char *c, ast l1, ast l2) {
 }
 
 ast ast_func_call(ast l1) {
-  return ast_make(CALL, "\0", 0, l1, NULL, NULL, NULL, NULL);
+  return ast_make(FUNC_CALL, "\0", 0, l1, NULL, NULL, NULL, NULL);
 }
 
 ast ast_expr_part(ast l1, ast l2) {
@@ -304,23 +308,27 @@ void ast_sem (ast t) {
       //check if there's already a variable with the same name in current scope
       char c = t->id[0];
       if (!isalpha(c)) {
+        strcat(t->id, "\\0");
         error("variable names have to start with a letter. variable is: %s\n", t->id);
       }
       SymbolEntry *e = lookupEntry(t->id,LOOKUP_CURRENT_SCOPE,false);
       if (e!=NULL) {
+        strcat(t->id, "\\0");
         error("there is already a variable with the name: $s\n", t->id);
       }
       return;
     case SKIP:
       return;
     case ASSIGN:
+      //WARNING: still need to check the case where k = STRING_LIT.
       //assign a value to a variable
       ast_sem(t->branch1);
+      if ((t->branch1->type->kind == TYPE_ARRAY) || (t->branch1->type->kind == TYPE_IARRAY) ) error("cannot assign a value to an array variable");
       kind k = t->branch1->k;
-
+      ast_sem(t->branch2);
       //check if types are the same
       if (!equalType(t->branch1->type, t->branch2->type)) {
-        error("type mismatch in assigning value to variable %s", t->branch1->id);
+        error("type mismatch in assigning value to variable");
       }
       if (k == ID) {
         //we first check if a variable with that name exists
@@ -333,7 +341,12 @@ void ast_sem (ast t) {
         t->offset = v->u.eVariable.offset;
       }
       else if (k == ARR) {
-        //l_value is t[n] 
+        //l_value is t[n]
+        ast temp = t->branch1;
+        while(temp->k != ID) temp = temp->branch1;
+        SymbolEntry *v = lookupEntry(temp->id,LOOKUP_ALL_SCOPES,true);
+        t->nesting_diff = currentScope->nestingLevel - v->nestingLevel;
+        t->offset = v->u.eVariable.offset;
       }
       return;
     case IF:
@@ -357,19 +370,44 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       return;
+    case TID:
+      char c = t->id[0];
+      if (!isalpha(c)) {
+        error("variable names have to start with a letter");
+      }
+      SymbolEntry *e = lookupEntry(t->id,LOOKUP_ALL_SCOPES,true);
+      if (e->entryType == ENTRY_PARAMETER) {
+        t->type = e->u.eParameter.type;
+        t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
+        t->offset = e->u.eParameter.offset;
+      }
+      else if (e->entryType == ENTRY_VARIABLE) {
+        t->type = e->u.eVariable.type;
+        t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
+        t->offset = e->u.eVariable.offset;
+      }
+      return;
     case ARR:
       //branch1-> l_value, branch2-> expr
       //case is an access to a[i] (element i of array a)
+      //we check if 'a' is an array, if it exists, if i is int and if 0 <= i < N , N being the size of the array
       ast_sem(t->branch1);
       ast temp = t->branch1;
-      while((temp->kind != ID) && (temp->kind != STRING_LIT)) temp = temp->branch1;
+      while((temp->k != ID) && (temp->k != STRING_LIT)) temp = temp->branch1;
       SymbolEntry *e = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
+      if ((t->branch1->type->kind != TYPE_ARRAY) && (t->branch1->type->kind != TYPE_IARRAY))
+        error("l_value is not an array");
       ast_sem(t->branch2);
       if (!equalType(t->branch2->type, typeInteger)) error("tried to access an array with index not being integer");
-
-      if (e->entryType = ENTRY_VARIABLE) {
-        t->type = e->u.eVariable.type;
+      if (t->branch2->num < 0) error("index below 0");
+      if (t->branch1->type->kind = TYPE_ARRAY) {
+        if (t->branch2->num >= t->branch1->type->size) error("index exceeds array size");
       }
+
+      t->type = t->branch1->type->refType;
+      return;
+    case INTCONST:
+      t->type = typeInteger;
       return;
     case PLUS:
       ast_sem(t->branch1);

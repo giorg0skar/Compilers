@@ -183,13 +183,13 @@ block:
 ;
 
 proc_call:
-  T_id
-| T_id ':' expr expr_part
+  T_id                    { $$ = ast_proc_call($1,NULL,NULL); }
+| T_id ':' expr expr_part { $$ = ast_proc_call($1,$3,$4); }
 ;
 
 expr_part:
   %empty  { $$ = NULL; }
-| ',' expr expr_part
+| expr_part ',' expr  { $$ = expr_part($3,$1); }
 ;
 
 func_call:
@@ -198,7 +198,7 @@ func_call:
 ;
 
 l_value:
-  T_id    { $$ = ast_id($1,NULL); }
+  T_id    { $$ = ast_tid($1); }
 | T_string_literal
 | l_value '[' expr ']'  { $$ = ast_arr($1,$3); }
 ;
