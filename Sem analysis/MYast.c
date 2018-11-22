@@ -108,9 +108,15 @@ ast ast_int_const(int num) {
   return ast_make(INTCONST, "\0", num, NULL, NULL, NULL, NULL, NULL);
 }
 
+ast ast_char_const(char c) {
+  char name[1];
+  name[0] = c;
+  return ast_make(CHARCONST, name, 0, NULL, NULL, NULL, NULL, NULL);
+}
+
 //not sure
-ast ast_proc_call(char *c, ast l1, ast l2) {
-  return ast_make(PROC_CALL, c, 0, l1, l2, NULL, NULL, NULL);
+ast ast_proc_call(char *s, ast l1, ast l2) {
+  return ast_make(PROC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
 
 ast ast_func_call(ast l1) {
@@ -330,7 +336,7 @@ void ast_sem (ast t) {
       if (!equalType(t->branch1->type, t->branch2->type)) {
         error("type mismatch in assigning value to variable");
       }
-      if (k == ID) {
+      if (k == TID) {
         //we first check if a variable with that name exists
         SymbolEntry *v = lookupEntry(t->branch1->id, LOOKUP_ALL_SCOPES, true);
         if (v == NULL) {
@@ -343,7 +349,7 @@ void ast_sem (ast t) {
       else if (k == ARR) {
         //l_value is t[n]
         ast temp = t->branch1;
-        while(temp->k != ID) temp = temp->branch1;
+        while(temp->k != ID && temp->k != TID) temp = temp->branch1;
         SymbolEntry *v = lookupEntry(temp->id,LOOKUP_ALL_SCOPES,true);
         t->nesting_diff = currentScope->nestingLevel - v->nestingLevel;
         t->offset = v->u.eVariable.offset;
@@ -370,6 +376,15 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       return;
+    case PROC_CALL:
+      //calling a previously defined function (with no return value)
+      //branch1-> expr , branch2-> expr_part (more expressions)
+      //we check if a process with the given name exists
+      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
+      ast_sem(t->branch1);
+      if (t->branch1 == NULL && f->u.eFunction.firstArgument != NULL) error("function has more parameters than given");
+      return;
     case TID:
       char c = t->id[0];
       if (!isalpha(c)) {
@@ -393,7 +408,7 @@ void ast_sem (ast t) {
       //we check if 'a' is an array, if it exists, if i is int and if 0 <= i < N , N being the size of the array
       ast_sem(t->branch1);
       ast temp = t->branch1;
-      while((temp->k != ID) && (temp->k != STRING_LIT)) temp = temp->branch1;
+      while((temp->k != TID) && (temp->k != STRING_LIT)) temp = temp->branch1;
       SymbolEntry *e = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
       if ((t->branch1->type->kind != TYPE_ARRAY) && (t->branch1->type->kind != TYPE_IARRAY))
         error("l_value is not an array");
@@ -408,6 +423,9 @@ void ast_sem (ast t) {
       return;
     case INTCONST:
       t->type = typeInteger;
+      return;
+    case CHARCONST:
+      t->type = typeChar;
       return;
     case PLUS:
       ast_sem(t->branch1);

@@ -189,7 +189,7 @@ proc_call:
 
 expr_part:
   %empty  { $$ = NULL; }
-| expr_part ',' expr  { $$ = expr_part($3,$1); }
+| ',' expr expr_part   { $$ = expr_part($2,$3); }
 ;
 
 func_call:
@@ -206,7 +206,7 @@ l_value:
 expr:
   T_intconst    { $$ = ast_int_const($1); }
 | T_char_const  { $$ = ast_char_const($1); }
-| l_value
+| l_value       { $$ = $1; }
 | '(' expr ')'
 | func_call
 | '+' expr  { $$ = ast_op(ast_int_const(0),PLUS,$2); }  %prec UPLUS
@@ -216,8 +216,8 @@ expr:
 | expr '*' expr { $$ = ast_op($1,TIMES,$3); }
 | expr '/' expr { $$ = ast_op($1,DIV,$3); }
 | expr '%' expr { $$ = ast_op($1,MOD,$3); }
-| "true"
-| "false"
+| "true"    { $$ = ast_char_const('\x01'); }
+| "false"   { $$ = ast_char_const('\0'); }
 | '!' expr
 | expr '&' expr
 | expr '|' expr
