@@ -106,7 +106,7 @@ header:
 
 header_part:
   %empty  { $$ = NULL; }
-| header_part ',' fpar_def  { $$ = ast_header_part($3,$1); }
+| ',' fpar_def header_part  { $$ = ast_header_part($2,$3); }
 ;
 
 fpar_def:
@@ -159,12 +159,12 @@ stmt:
   "skip"            { $$ = ast_skip(); }
 | l_value ":=" expr { $$ = ast_assign($1,$3); }
 | proc_call         { $$ = $1; }
-| "exit"
-| "return" ':' expr
+| "exit"            { $$ = ast_exit(); }
+| "return" ':' expr { $$ = ast_return($3); }
 | "if" cond ':' block   { $$ = ast_if($2,$4); }
-| "if" cond ':' block if_part "else" ':' block
-| "loop" ':' block
-| "loop" T_id ':' block
+| "if" cond ':' block if_part "else" ':' block  { $$ = ast_if_else($2,$4,$5,$8); }
+| "loop" ':' block        { $$ = ast_loop("\0", $3); }
+| "loop" T_id ':' block   { $$ = ast_loop($2,$4); }
 | "break"
 | "break" ':' T_id
 | "continue"
@@ -174,7 +174,7 @@ stmt:
 
 if_part:
   %empty  { $$ = NULL; }
-| "elif" cond ':' block if_part
+| "elif" cond ':' block if_part   { $$ = ast_elif($2,$4,$5); }
 ;
 
 block:
@@ -207,20 +207,20 @@ expr:
   T_intconst    { $$ = ast_int_const($1); }
 | T_char_const  { $$ = ast_char_const($1); }
 | l_value       { $$ = $1; }
-| '(' expr ')'
-| func_call
-| '+' expr  { $$ = ast_op(ast_int_const(0),PLUS,$2); }  %prec UPLUS
-| '-' expr  { $$ = ast_op(ast_int_const(0),MINUS,$2); } %prec UMINUS
+| '(' expr ')'  { $$ = $1; }
+| func_call     { $$ = $1; }
+| '+' expr      { $$ = ast_op(ast_int_const(0),PLUS,$2); }  %prec UPLUS
+| '-' expr      { $$ = ast_op(ast_int_const(0),MINUS,$2); } %prec UMINUS
 | expr '+' expr { $$ = ast_op($1,PLUS,$3); }
 | expr '-' expr { $$ = ast_op($1,MINUS,$3); }
 | expr '*' expr { $$ = ast_op($1,TIMES,$3); }
 | expr '/' expr { $$ = ast_op($1,DIV,$3); }
 | expr '%' expr { $$ = ast_op($1,MOD,$3); }
-| "true"    { $$ = ast_char_const('\x01'); }
-| "false"   { $$ = ast_char_const('\0'); }
-| '!' expr
-| expr '&' expr
-| expr '|' expr
+| "true"        { $$ = ast_char_const('\x01'); }
+| "false"       { $$ = ast_char_const('\0'); }
+| '!' expr      { $$ = ast_not_expr($2); }
+| expr '&' expr { $$ = ast_and_expr($1,$3); }
+| expr '|' expr { $$ = ast_or_expr($1,$3); }
 ;
 
 cond:

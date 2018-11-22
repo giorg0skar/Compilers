@@ -75,6 +75,10 @@ ast ast_assign(ast l, ast r) {
   return ast_make(ASSIGN, "\0", 0, l, r, NULL, NULL, NULL);
 }
 
+ast ast_exit() {
+  return ast_make(EXIT, "\0", 0, NULL, NULL, NULL, NULL, NULL);
+}
+
 ast ast_if (ast l, ast r) {
   return ast_make(IF, "\0", 0, l, r, NULL, NULL, NULL);
 }
@@ -114,7 +118,6 @@ ast ast_char_const(char c) {
   return ast_make(CHARCONST, name, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
-//not sure
 ast ast_proc_call(char *s, ast l1, ast l2) {
   return ast_make(PROC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
@@ -228,6 +231,8 @@ SymbolEntry * insert(char *c, Type t) {
   return newVariable(name, t);
 }
 
+int time_to_leave = 0;
+
 void ast_sem (ast t) {
   if (t==NULL) return;
   switch (t->k) {
@@ -252,7 +257,7 @@ void ast_sem (ast t) {
       if (t->branch1 != NULL) {
         temp = t->branch1;    //temp now shows to fpar_def node. branch1 of that node is the beginning of the list of id nodes
         parType = temp->type;
-        if (temp->type->kind == TYPE_POINTER ) mode = PASS_BY_REFERENCE;
+        if ((temp->type->kind == TYPE_POINTER) || (temp->type->kind == TYPE_ARRAY) || (temp->type->kind == TYPE_IARRAY)) mode = PASS_BY_REFERENCE;
         else mode = PASS_BY_VALUE;
         for(temp=temp->branch1; temp!=NULL; temp=temp->branch1) {
           //we evaluate the semantics of each id node before we create the new entry. this is to avoid same name conflicts in the parameter definition
@@ -298,7 +303,7 @@ void ast_sem (ast t) {
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
       ast_sem(t->branch1);
-      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
+      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_ALL_SCOPES, false);
       forwardFunction(f);
       return;
     case VAR:
@@ -355,6 +360,11 @@ void ast_sem (ast t) {
         t->offset = v->u.eVariable.offset;
       }
       return;
+    case EXIT:
+      //we exit a block. it must not have a return type other than void
+      time_to_leave = 1;
+      closeScope();
+      return;
     case IF:
       ast_sem(t->branch1);
       if (!equalType(t->branch1->type, typeBoolean))
@@ -379,11 +389,38 @@ void ast_sem (ast t) {
     case PROC_CALL:
       //calling a previously defined function (with no return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
-      //we check if a process with the given name exists
+      //we check if an entry with the given name exists, if it's a function with void return type
       SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
+      if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
       ast_sem(t->branch1);
-      if (t->branch1 == NULL && f->u.eFunction.firstArgument != NULL) error("function has more parameters than given");
+      if (t->branch1 == NULL) {
+        if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
+        else {
+          //function has no parameters and we called it using none, so everything's wrapped up real nice
+          return;
+        }
+      }
+      if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
+      
+      SymbolEntry *params = f->u.eFunction.firstArgument;
+      if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
+      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
+        error("parameter passing mode mismatch");
+
+      ast temp = t->branch2;
+      params = params->u.eParameter.next;
+      //we check each real parameter to see if they match with the function's typical parameters
+      while(temp!=NULL && params!=NULL) {
+        ast_sem(temp->branch1);
+        if (!equalType(temp->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
+        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR ))
+          error("parameter passing mode mismatch");
+        params = params->u.eParameter.next;
+        temp = temp->branch2;
+      }
+      if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
+      if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
       return;
     case TID:
       char c = t->id[0];
