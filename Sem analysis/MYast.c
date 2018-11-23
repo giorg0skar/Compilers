@@ -79,8 +79,12 @@ ast ast_exit() {
   return ast_make(EXIT, "\0", 0, NULL, NULL, NULL, NULL, NULL);
 }
 
-ast ast_if (ast l, ast r) {
-  return ast_make(IF, "\0", 0, l, r, NULL, NULL, NULL);
+ast ast_return(ast l1) {
+  return ast_make(RET, "\0", 0, l1, NULL, NULL, NULL, NULL);
+}
+
+ast ast_if (ast l1, ast l2, ast l3) {
+  return ast_make(IF, "\0", 0, l1, l2, l3, NULL, NULL);
 }
 
 ast ast_if_else (ast cond, ast blck, ast ifp, ast elblck) {
@@ -89,6 +93,16 @@ ast ast_if_else (ast cond, ast blck, ast ifp, ast elblck) {
 
 ast ast_loop(char *s, ast l1) {
   return ast_make(LOOP, s, 0, l1, NULL, NULL, NULL, NULL);
+}
+
+ast ast_break(char *s) {
+  if (s == NULL) return ast_make(BREAK, "\0", 0, NULL, NULL, NULL, NULL, NULL);
+  return ast_make(BREAK, s, 0, NULL, NULL, NULL, NULL, NULL);
+}
+
+ast ast_continue(char *s) {
+  if (s == NULL) return ast_make(CONT, "\0", 0, NULL, NULL, NULL, NULL, NULL);
+  return ast_make(CONT, s, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
 ast ast_seq(ast l1, ast l2) {
@@ -113,7 +127,7 @@ ast ast_int_const(int num) {
 }
 
 ast ast_char_const(char c) {
-  char name[1];
+  char name[2];
   name[0] = c;
   return ast_make(CHARCONST, name, 0, NULL, NULL, NULL, NULL, NULL);
 }
@@ -231,7 +245,19 @@ SymbolEntry * insert(char *c, Type t) {
   return newVariable(name, t);
 }
 
+//the following variables specify when we need to exit a block and what command caused the exit
+enum {
+  EXIT,
+  BREAKING,
+  RETURN
+} leave_code;
+
 int time_to_leave = 0;
+
+//if we're in a condition we convert \x01 and \0 chars to true and false respectively
+void checkForBool(ast tr) {
+  if (strcmp(tr->id,"\0") == 0 || strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
+}
 
 void ast_sem (ast t) {
   if (t==NULL) return;
@@ -363,24 +389,46 @@ void ast_sem (ast t) {
     case EXIT:
       //we exit a block. it must not have a return type other than void
       time_to_leave = 1;
-      closeScope();
+      leave_code = EXIT;
+      //closeScope();
+      return;
+    case RET:
+      time_to_leave = 1;
+      leave_code = RETURN;
       return;
     case IF:
       ast_sem(t->branch1);
-      if (!equalType(t->branch1->type, typeBoolean))
-        error("if expects a boolean condition");
+      checkForBool(t->branch1);
+      if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
       ast_sem(t->branch2);
+      ast_sem(t->branch3);
       return;
     case IF_ELSE:
       ast_sem(t->branch1);
-      if (!equalType(t->branch1->type, typeBoolean))
-        error("if expects a boolean condition");
+      checkForBool(t->branch1);
+      if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
       ast_sem(t->branch2);
       ast_sem(t->branch3);
-      //??
+      ast_sem(t->branch4);
       return;
     case LOOP:
-      // ??
+      //we need to remember the loop's name if it has one
+      if (strcmp(t->id, "\0") != 0) {
+        Type ctype = typeArray(strlen(t->id + 1), typeChar);
+        SymbolEntry *e = newConstant(t->id, ctype, t->id);
+      }
+      //we open a new scope inside a loop
+      openScope();
+      ast_sem(t->branch1);
+      closeScope();
+      return;
+    case BREAK:
+      if (strcmp(t->id, "\0") != 0) {
+        //the break stops a specific loop
+        SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+        if (l->entryType != ENTRY_CONSTANT) error("break given string that's not a loop name");
+      }
+      time_to_leave = 1;
       return;
     case SEQ:
       ast_sem(t->branch1);
@@ -462,6 +510,12 @@ void ast_sem (ast t) {
       t->type = typeInteger;
       return;
     case CHARCONST:
+      //characters \x01 and \0 represent the true and false keywords. but we don't know if they will be used as bool or char
+      //solution: we consider them chars for now unless we notice that they are used in a condition
+
+      // if (strcmp(t->id, "\0")==0) t->type = typeBoolean;
+      // else if(strcmp(t->id, "\x01")==0) t->type = typeBoolean;
+      // else t->type = typeChar;
       t->type = typeChar;
       return;
     case PLUS:
@@ -524,17 +578,27 @@ void ast_sem (ast t) {
         else error("type mismatch in mod operator");
       }
       return;
+    case NOT:
+      ast_sem(t->branch1);
+      checkForBool(t->branch1);
+      if (!equalType(t->branch1->type, typeBoolean)) error("type mismatch in not operation");
+      t->type = typeBoolean;
+      return;
     case AND:
       ast_sem(t->branch1);
+      checkForBool(t->branch1);
       ast_sem(t->branch2);
-      if ( (!equalType(t->branch1->type, typeInteger)) || (!equalType(t->branch2->type, typeBoolean)))
+      checkForBool(t->branch2);
+      if ( (!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
         error("type mismatch in and operator");
       t->type = typeBoolean;
       return;
     case OR:
       ast_sem(t->branch1);
+      checkForBool(t->branch1);
       ast_sem(t->branch2);
-      if ( (!equalType(t->branch1->type, typeInteger)) || (!equalType(t->branch2->type, typeBoolean)))
+      checkForBool(t->branch2);
+      if ( (!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
         error("type mismatch in or operator");
       t->type = typeBoolean;
       return;
@@ -610,11 +674,24 @@ void ast_sem (ast t) {
         else error("type mismatch in <> operator");
       }
       return;
+    case EXPR_NOT:
+      //not operation for expressions
+      ast_sem(t->branch1);
+      if (!equalType(t->branch1->type, typeChar)) error("type mismatch in ! operation");
+      t->type = typeChar;
+      return;
     case EXPR_AND:
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if ((!equalType(t->branch1->type, typeChar)) || (!equalType(t->branch2->type, typeChar)))
-        error("type mismatch in expression and operation");
+        error("type mismatch in & operation");
+      t->type = typeChar;
+      return;
+    case EXPR_OR:
+      ast_sem(t->branch1);
+      ast_sem(t->branch2);
+      if ((!equalType(t->branch1->type, typeChar)) || (!equalType(t->branch2->type, typeChar)))
+        error("type mismatch in | operation");
       t->type = typeChar;
       return;
   }

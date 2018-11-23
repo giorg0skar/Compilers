@@ -161,20 +161,20 @@ stmt:
 | proc_call         { $$ = $1; }
 | "exit"            { $$ = ast_exit(); }
 | "return" ':' expr { $$ = ast_return($3); }
-| "if" cond ':' block   { $$ = ast_if($2,$4); }
+| "if" cond ':' block if_part  { $$ = ast_if($2,$4,$5); }
 | "if" cond ':' block if_part "else" ':' block  { $$ = ast_if_else($2,$4,$5,$8); }
 | "loop" ':' block        { $$ = ast_loop("\0", $3); }
 | "loop" T_id ':' block   { $$ = ast_loop($2,$4); }
-| "break"
-| "break" ':' T_id
-| "continue"
-| "continue" ':' T_id
+| "break"           { $$ = ast_break(NULL); }
+| "break" ':' T_id  { $$ = ast_break($3); }
+| "continue"          { $$ = ast_continue(NULL); }
+| "continue" ':' T_id { $$ = ast_continue($3); }
 | stmt stmt   { $$ = ast_seq($1,$2); }
 ;
 
 if_part:
   %empty  { $$ = NULL; }
-| "elif" cond ':' block if_part   { $$ = ast_elif($2,$4,$5); }
+| "elif" cond ':' block if_part   { $$ = ast_if($2,$4,$5); }
 ;
 
 block:
@@ -194,7 +194,7 @@ expr_part:
 
 func_call:
   T_id '(' ')'
-| T_id '(' expr expr_part ')'
+| T_id '(' expr expr_part ')' { $$ = ast_func_call($1,$3,$4); }
 ;
 
 l_value:
@@ -234,7 +234,7 @@ x_cond:
 | cond "and" cond { $$ = ast_op($1,AND,$3); }
 | cond "or" cond  { $$ = ast_op($1,OR,$3); }
 | expr '=' expr   { $$ = ast_op($1,EQ,$3); }
-| expr "<>" expr  { $$ = ast_op($1,NE,$3); }
+| expr "<>" expr  { $$ = ast_op($1,NEQ,$3); }
 | expr '<' expr   { $$ = ast_op($1,LT,$3); }
 | expr '>' expr   { $$ = ast_op($1,GT,$3); }
 | expr "<=" expr  { $$ = ast_op($1,LE,$3); }
