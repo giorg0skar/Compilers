@@ -193,7 +193,7 @@ expr_part:
 ;
 
 func_call:
-  T_id '(' ')'
+  T_id '(' ')'                { $$ = ast_func_call($1,NULL,NULL); }
 | T_id '(' expr expr_part ')' { $$ = ast_func_call($1,$3,$4); }
 ;
 
@@ -207,7 +207,7 @@ expr:
   T_intconst    { $$ = ast_int_const($1); }
 | T_char_const  { $$ = ast_char_const($1); }
 | l_value       { $$ = $1; }
-| '(' expr ')'  { $$ = $1; }
+| '(' expr ')'  { $$ = $2; }
 | func_call     { $$ = $1; }
 | '+' expr      { $$ = ast_op(ast_int_const(0),PLUS,$2); }  %prec UPLUS
 | '-' expr      { $$ = ast_op(ast_int_const(0),MINUS,$2); } %prec UMINUS
@@ -229,7 +229,7 @@ cond:
 ;
 
 x_cond:
-  '(' x_cond ')'
+  '(' x_cond ')'  { $$ = $2; }
 | "not" cond      { $$ = ast_op(NULL,NOT,$2); }
 | cond "and" cond { $$ = ast_op($1,AND,$3); }
 | cond "or" cond  { $$ = ast_op($1,OR,$3); }

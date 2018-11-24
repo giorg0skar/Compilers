@@ -136,8 +136,8 @@ ast ast_proc_call(char *s, ast l1, ast l2) {
   return ast_make(PROC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
 
-ast ast_func_call(ast l1) {
-  return ast_make(FUNC_CALL, "\0", 0, l1, NULL, NULL, NULL, NULL);
+ast ast_func_call(char *s, ast l1, ast l2) {
+  return ast_make(FUNC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
 
 ast ast_expr_part(ast l1, ast l2) {
@@ -247,7 +247,7 @@ SymbolEntry * insert(char *c, Type t) {
 
 //the following variables specify when we need to exit a block and what command caused the exit
 enum {
-  EXIT,
+  EXITING,
   BREAKING,
   RETURN
 } leave_code;
@@ -256,7 +256,9 @@ int time_to_leave = 0;
 
 //if we're in a condition we convert \x01 and \0 chars to true and false respectively
 void checkForBool(ast tr) {
-  if (strcmp(tr->id,"\0") == 0 || strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
+  if (tr->type == typeChar)
+    if (strcmp(tr->id,"\0") == 0 || strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
+  return;
 }
 
 void ast_sem (ast t) {
@@ -302,7 +304,7 @@ void ast_sem (ast t) {
         //for each headerpart we evaluate a fpar_def node like before
         temp = headerpart->branch1;   //in every iteration temp points to the fpar_def node of the header_part node
         parType = temp->type;
-        if (temp->type->kind == TYPE_POINTER ) mode = PASS_BY_REFERENCE;
+        if ((temp->type->kind == TYPE_POINTER) || (temp->type->kind == TYPE_ARRAY) || (temp->type->kind == TYPE_IARRAY)) mode = PASS_BY_REFERENCE;
         else mode = PASS_BY_VALUE;
         ast idnode;
         for(idnode=temp->branch1; idnode!=NULL; idnode=idnode->branch1) {
@@ -329,7 +331,8 @@ void ast_sem (ast t) {
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
       ast_sem(t->branch1);
-      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_ALL_SCOPES, false);
+      //we assume that there are not any functions with the same name and different headers in the same scope
+      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
       forwardFunction(f);
       return;
     case VAR:
@@ -387,12 +390,38 @@ void ast_sem (ast t) {
       }
       return;
     case EXIT:
-      //we exit a block. it must not have a return type other than void
+      //we exit a block. it must not have a return type
+      //we must make sure exit is inside a function with return type: void
       time_to_leave = 1;
-      leave_code = EXIT;
+      leave_code = EXITING;
       //closeScope();
       return;
     case RET:
+      //we return an expr and leave the function
+      //we must make sure return is inside a function with the same type as the return value
+      ast_sem(t->branch1);
+      SymbolEntry *e;
+      Scope *loop_scope;
+      int found = 0;
+      int foundAFunction = 0;
+      for (loop_scope=currentScope; loop_scope != NULL; loop_scope=loop_scope->parent) {
+        for(e = loop_scope->entries; e!=NULL; e=e->nextInScope) {
+          if (e->entryType == ENTRY_FUNCTION) {
+            foundAFunction = 1;
+            if (equalType(e->u.eFunction.resultType, t->branch1->type)) {
+              //we found the function
+              found = 1;
+              break;
+            }
+          }
+        }
+        if (found) break;
+      }
+      //foundAFunction exists solely to print the correct error statement
+      if (found == 0) {
+        if (foundAFunction) error("function doesn't have the same type as the return value");
+        else error("return command used but no function found");
+      }
       time_to_leave = 1;
       leave_code = RETURN;
       return;
@@ -400,16 +429,22 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
+      openScope();
       ast_sem(t->branch2);
+      closeScope();
       ast_sem(t->branch3);
       return;
     case IF_ELSE:
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
+      openScope();
       ast_sem(t->branch2);
+      closeScope();
       ast_sem(t->branch3);
+      openScope();
       ast_sem(t->branch4);
+      closeScope();
       return;
     case LOOP:
       //we need to remember the loop's name if it has one
@@ -427,12 +462,27 @@ void ast_sem (ast t) {
         //the break stops a specific loop
         SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
         if (l->entryType != ENTRY_CONSTANT) error("break given string that's not a loop name");
+        if(l->nestingLevel > currentScope->nestingLevel) error("break isn't located inside the %s loop", t->id);
       }
       time_to_leave = 1;
+      leave_code = BREAKING;
+      return;
+    case CONT:
+      if (strcmp(t->id, "\0") != 0) {
+        //continue begins the next iteration of a specific loop
+        SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+        if (l->entryType != ENTRY_CONSTANT) error("break given string that's not a loop name");
+        if(l->nestingLevel > currentScope->nestingLevel) error("continue isn't located inside the %s loop", t->id);
+      }
       return;
     case SEQ:
       ast_sem(t->branch1);
       ast_sem(t->branch2);
+      return;
+    case BLOCK:
+      //we begin a new block.
+      t->num_vars = currentScope->negOffset;
+      ast_sem(t->branch1);
       return;
     case PROC_CALL:
       //calling a previously defined function (with no return value)
@@ -451,6 +501,42 @@ void ast_sem (ast t) {
       }
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
       
+      SymbolEntry *params = f->u.eFunction.firstArgument;
+      if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
+      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
+        error("parameter passing mode mismatch");
+
+      ast temp = t->branch2;
+      params = params->u.eParameter.next;
+      //we check each real parameter to see if they match with the function's typical parameters
+      while(temp!=NULL && params!=NULL) {
+        ast_sem(temp->branch1);
+        if (!equalType(temp->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
+        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR ))
+          error("parameter passing mode mismatch");
+        params = params->u.eParameter.next;
+        temp = temp->branch2;
+      }
+      if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
+      if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+      return;
+    case FUNC_CALL:
+      //calling a previously defined function (with return value)
+      //branch1-> expr , branch2-> expr_part (more expressions)
+      //we check if an entry with the given name exists, if it's a function with non-void return type
+      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
+      if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
+      ast_sem(t->branch1);
+      if (t->branch1 == NULL) {
+        if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
+        else {
+          //function has no parameters and we called it using none, so everything's wrapped up real nice
+          return;
+        }
+      }
+      if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
+
       SymbolEntry *params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
@@ -579,9 +665,9 @@ void ast_sem (ast t) {
       }
       return;
     case NOT:
-      ast_sem(t->branch1);
-      checkForBool(t->branch1);
-      if (!equalType(t->branch1->type, typeBoolean)) error("type mismatch in not operation");
+      ast_sem(t->branch2);
+      checkForBool(t->branch2);
+      if (!equalType(t->branch2->type, typeBoolean)) error("type mismatch in not operation");
       t->type = typeBoolean;
       return;
     case AND:

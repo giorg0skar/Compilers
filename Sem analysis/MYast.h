@@ -28,17 +28,33 @@ typedef struct node {
 
 ast ast_func_def(ast header, ast local, ast block);
 ast ast_header(char *l1, Type t, ast l2, ast l3);
-
+ast ast_header_part(ast l1, ast l2);
 ast ast_fpar_def(ast l1, Type t);
-//ast ast_func_decl(ast l1);
 ast ast_decl (ast l1);
+ast ast_var(ast idlist, Type t);
 ast ast_id (char *c, ast next);
 ast ast_op (ast l, kind op, ast r);
 ast ast_skip();
-
+ast ast_assign(ast l, ast r);
+ast ast_exit();
+ast ast_return(ast l1);
+ast ast_if (ast l1, ast l2, ast l3);
+ast ast_if_else (ast cond, ast blck, ast ifp, ast elblck);
+ast ast_loop(char *l, ast r);
+ast ast_break(char *s);
+ast ast_continue(char *s);
+ast ast_seq(ast l1, ast l2);
+ast ast_block(ast l1);
+ast ast_tid(ast l1);
 ast ast_arr(ast l1, ast l2);
 ast ast_int_const (int n);
-ast ast_loop(char *l, ast r);
+ast ast_char_const(char c);
+ast ast_proc_call(char *s, ast l1, ast l2);
+ast ast_func_call(char *s, ast l1, ast l2);
+ast ast_expr_part(ast l1, ast l2);
+ast ast_not_expr(ast l1)
+ast ast_and_expr(ast l1, ast l2);
+ast ast_or_expr(ast l1, ast l2)
 
 void ast_sem (ast t);
 
