@@ -5,8 +5,7 @@
 
 typedef enum {
   PROGRAM, HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF, FUNC_DECL,
-  PROC_CALL, VAR, ID,
-  SKIP, BREAK, CONT, LOOP, SEQ, IF, IF_ELSE, BLOCK,
+  VAR, ID, SKIP, BREAK, CONT, LOOP, SEQ, IF, IF_ELSE, BLOCK,
   PLUS, MINUS, TIMES, DIV, MOD,
   NOT, AND, OR, EQ, NEQ, LT, GT, LE, GE,
   EXIT, ASSIGN, PROC_CALL, FUNC_CALL, RET, DECL,
@@ -45,16 +44,17 @@ ast ast_break(char *s);
 ast ast_continue(char *s);
 ast ast_seq(ast l1, ast l2);
 ast ast_block(ast l1);
-ast ast_tid(ast l1);
+ast ast_tid(char *s);
+ast ast_string_lit(char *s);
 ast ast_arr(ast l1, ast l2);
 ast ast_int_const (int n);
 ast ast_char_const(char c);
 ast ast_proc_call(char *s, ast l1, ast l2);
 ast ast_func_call(char *s, ast l1, ast l2);
 ast ast_expr_part(ast l1, ast l2);
-ast ast_not_expr(ast l1)
+ast ast_not_expr(ast l1);
 ast ast_and_expr(ast l1, ast l2);
-ast ast_or_expr(ast l1, ast l2)
+ast ast_or_expr(ast l1, ast l2);
 
 void ast_sem (ast t);
 

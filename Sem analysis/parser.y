@@ -1,9 +1,9 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "MYast.h"
 #include "symbol.h"
-#include <string.h>
 //#include <vector>
 //#include <string>
 
@@ -14,8 +14,11 @@ extern int linenumber;
 ast t;
 %}
 
-%union {
+%union{
   ast a;
+  char *s;
+  char c;
+  int n;
   Type t;
 }
 
@@ -50,15 +53,16 @@ ast t;
 %token T_greatereq ">="
 %token T_noteq "<>"
 %token T_assign ":="
-%token T_name 
-%token T_char
-%token T_intconst
-%token T_string
-%token T_id
-%token T_char_const
-%token T_string_literal
+%token<n> T_intconst
+%token<s> T_id
+%token<s> T_string
+%token<c> T_char
 %token T_auto_end
 
+%left "or"
+%left "and"
+%left "not"
+%nonassoc '<' '>' "<=" ">=" '=' "<>"
 %left '+' '-'
 %left '*' '/' '%'
 %left UMINUS UPLUS
@@ -189,7 +193,7 @@ proc_call:
 
 expr_part:
   %empty  { $$ = NULL; }
-| ',' expr expr_part   { $$ = expr_part($2,$3); }
+| ',' expr expr_part   { $$ = ast_expr_part($2,$3); }
 ;
 
 func_call:
@@ -199,13 +203,13 @@ func_call:
 
 l_value:
   T_id    { $$ = ast_tid($1); }
-| T_string_literal
+| T_string  { $$ = ast_string_lit($1); }
 | l_value '[' expr ']'  { $$ = ast_arr($1,$3); }
 ;
 
 expr:
   T_intconst    { $$ = ast_int_const($1); }
-| T_char_const  { $$ = ast_char_const($1); }
+| T_char        { $$ = ast_char_const($1); }
 | l_value       { $$ = $1; }
 | '(' expr ')'  { $$ = $2; }
 | func_call     { $$ = $1; }

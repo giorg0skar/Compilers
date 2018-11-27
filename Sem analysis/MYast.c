@@ -118,6 +118,10 @@ ast ast_tid(char *s) {
   return ast_make(TID, s, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
+ast ast_string_lit(char *s) {
+  return ast_make(STRING_LIT, s, 0, NULL, NULL, NULL, NULL, NULL);
+}
+
 ast ast_arr(ast l1, ast l2) {
   return ast_make(ARR, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
@@ -274,6 +278,7 @@ void ast_sem (ast t) {
       closeScope();
       return;
     case HEADER:
+      ;
       SymbolEntry *f = newFunction(t->id);
       //f->u.eFunction.resultType = t->type;
 
@@ -316,28 +321,29 @@ void ast_sem (ast t) {
 
       endFunctionHeader(f, t->type);
       return;
-    case FPAR_DEF:
-      //this case may not need to get accessed. --> most likely.
-
-      //here one or more parameters are defined. all parameters have the same type
-      ast temp;
-      for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
-        ast_sem(temp);
-        //we set the parameter type as the given one
-        temp->type = t->type;
-      }
-      return;
+    // case FPAR_DEF:
+    //   //this case may not need to get accessed. --> most likely.
+    //   ;
+    //   //here one or more parameters are defined. all parameters have the same type
+    //   ast temp;
+    //   for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
+    //     ast_sem(temp);
+    //     //we set the parameter type as the given one
+    //     temp->type = t->type;
+    //   }
+    //   return;
     case DECL:
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
       ast_sem(t->branch1);
       //we assume that there are not any functions with the same name and different headers in the same scope
-      SymbolEntry *f = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
-      forwardFunction(f);
+      SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
+      forwardFunction(f1);
       return;
     case VAR:
       //var definitions
-      ast temp;
+      ;
+      temp;
       for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
         ast_sem(temp);
         temp->type = t->type;
@@ -345,6 +351,7 @@ void ast_sem (ast t) {
       }
       return;
     case ID:
+      ;
       //check if there's already a variable with the same name in current scope
       char c = t->id[0];
       if (!isalpha(c)) {
@@ -400,7 +407,7 @@ void ast_sem (ast t) {
       //we return an expr and leave the function
       //we must make sure return is inside a function with the same type as the return value
       ast_sem(t->branch1);
-      SymbolEntry *e;
+      //SymbolEntry *e;
       Scope *loop_scope;
       int found = 0;
       int foundAFunction = 0;
@@ -485,10 +492,11 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       return;
     case PROC_CALL:
+      ;
       //calling a previously defined function (with no return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with void return type
-      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
       ast_sem(t->branch1);
@@ -506,7 +514,7 @@ void ast_sem (ast t) {
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
         error("parameter passing mode mismatch");
 
-      ast temp = t->branch2;
+      temp = t->branch2;
       params = params->u.eParameter.next;
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
@@ -521,10 +529,11 @@ void ast_sem (ast t) {
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
       return;
     case FUNC_CALL:
+      ;
       //calling a previously defined function (with return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with non-void return type
-      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
       ast_sem(t->branch1);
@@ -537,12 +546,12 @@ void ast_sem (ast t) {
       }
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
 
-      SymbolEntry *params = f->u.eFunction.firstArgument;
+      params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
         error("parameter passing mode mismatch");
 
-      ast temp = t->branch2;
+      temp = t->branch2;
       params = params->u.eParameter.next;
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
@@ -557,11 +566,12 @@ void ast_sem (ast t) {
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
       return;
     case TID:
-      char c = t->id[0];
-      if (!isalpha(c)) {
+      ;
+      char c1 = t->id[0];
+      if (!isalpha(c1)) {
         error("variable names have to start with a letter");
       }
-      SymbolEntry *e = lookupEntry(t->id,LOOKUP_ALL_SCOPES,true);
+      e = lookupEntry(t->id,LOOKUP_ALL_SCOPES,true);
       if (e->entryType == ENTRY_PARAMETER) {
         t->type = e->u.eParameter.type;
         t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
@@ -578,15 +588,15 @@ void ast_sem (ast t) {
       //case is an access to a[i] (element i of array a)
       //we check if 'a' is an array, if it exists, if i is int and if 0 <= i < N , N being the size of the array
       ast_sem(t->branch1);
-      ast temp = t->branch1;
+      temp = t->branch1;
       while((temp->k != TID) && (temp->k != STRING_LIT)) temp = temp->branch1;
-      SymbolEntry *e = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
+      SymbolEntry *e2 = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
       if ((t->branch1->type->kind != TYPE_ARRAY) && (t->branch1->type->kind != TYPE_IARRAY))
         error("l_value is not an array");
       ast_sem(t->branch2);
       if (!equalType(t->branch2->type, typeInteger)) error("tried to access an array with index not being integer");
       if (t->branch2->num < 0) error("index below 0");
-      if (t->branch1->type->kind = TYPE_ARRAY) {
+      if (t->branch1->type->kind == TYPE_ARRAY) {
         if (t->branch2->num >= t->branch1->type->size) error("index exceeds array size");
       }
 

@@ -1,6 +1,8 @@
 %{
-#include "parser.h"
 #include <stdio.h>
+#include "MYast.h"
+#include "parser.h"
+// #include "symbol.h"
 //#include "y.tab.h"
 
 //----defining to test lexer alone
