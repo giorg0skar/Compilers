@@ -220,9 +220,9 @@ Char {singlequote}{1}.{singlequote}{1}
 
 	/*identifiers*/
 
-{Intconst}		{ isNextEOF(); return T_intconst; }
-{Char}			{ isNextEOF(); return T_char; }
-{Id}			{ isNextEOF(); return T_id; }
+{Intconst}		{ yylval.n = atoi(yytext); isNextEOF(); return T_intconst; }
+{Char}			{ yylval.c = yytext[0]; isNextEOF(); return T_char; }
+{Id}			{ yylval.s = strdup(yytext); isNextEOF(); return T_id; }
 \r				{ isNextEOF(); /* nothing */}
 
  /*\n			{ linenumber++; } */
