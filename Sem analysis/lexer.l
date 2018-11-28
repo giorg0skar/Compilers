@@ -232,7 +232,7 @@ Char {singlequote}{1}.{singlequote}{1}
 %%
 
 
-//if the next character form input is EOF then go to FINAL state to prepare to close any open blocks 
+//if the next character from input is EOF then go to FINAL state to prepare to close any open blocks 
 void isNextEOF(void) {
 	register int c;
 	c=input();

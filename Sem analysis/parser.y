@@ -98,11 +98,11 @@ program:
 ;
 
 func_def:
-  "def" header local_def block  { $$ = ast_func_def($2,$3,$4); }
+  "def" header local_def block  { printf("defined a function on line %d\n", linenumber); $$ = ast_func_def($2,$3,$4); }
 ;
 
 header:
-  T_id                                          { $$ = ast_header($1,typeVoid,NULL,NULL); }
+  T_id                                          { printf("header %d\n", linenumber); $$ = ast_header($1,typeVoid,NULL,NULL); }
 | T_id "is" data_type                           { $$ = ast_header($1,$3,NULL,NULL); }
 | T_id ':' fpar_def header_part                 { $$ = ast_header($1,typeVoid,$3,$4); }
 | T_id "is" data_type ':' fpar_def header_part  { $$ = ast_header($1,$3,$5,$6); }
@@ -114,7 +114,7 @@ header_part:
 ;
 
 fpar_def:
-  id "as" fpar_type   { $$ = ast_fpar_def($1,$3); }
+  id "as" fpar_type   { printf("fpar def\n"); $$ = ast_fpar_def($1,$3); }
 ;
 
 data_type:
@@ -147,7 +147,7 @@ local_def:
 ;
 
 func_decl:
-  "decl" header   { $$ = ast_decl($2); }
+  "decl" header   { printf("decl\n"); $$ = ast_decl($2); }
 ;
 
 var_def:
@@ -155,7 +155,7 @@ var_def:
 ;
 
 id:
-  T_id    { $$ = ast_id($1,NULL); }
+  T_id    { printf("id\n"); $$ = ast_id($1,NULL); }
 | T_id id { $$ = ast_id($1,$2); }
 ;
 
@@ -182,7 +182,7 @@ if_part:
 ;
 
 block:
-  "begin" stmt "end"  { $$ = ast_block($2); }
+  "begin" stmt "end"  { printf("block begins\n"); $$ = ast_block($2); }
 | stmt T_end  { $$ = ast_block($1); }
 ;
 
@@ -208,7 +208,7 @@ l_value:
 ;
 
 expr:
-  T_intconst    { $$ = ast_int_const($1); }
+  T_intconst    { printf("num\n"); $$ = ast_int_const($1); }
 | T_char        { $$ = ast_char_const($1); }
 | l_value       { $$ = $1; }
 | '(' expr ')'  { $$ = $2; }

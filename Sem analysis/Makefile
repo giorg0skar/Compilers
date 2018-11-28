@@ -13,12 +13,6 @@ lexer.o: lexer.c parser.h
 parser.h parser.c: parser.y
 	bison -dv -o parser.c parser.y
 
-# MYast.o: MYast.c MYast.h error.h symbol.h
-# 	$(CC) -Wall -c $^
-
-# symbol.o: symbol.c symbol.h error.h general.h
-# 	$(CC) -Wall -c $^
-
 dana: MYast.o general.o error.o symbol.o lexer.o parser.o
 	$(CC) $(CFLAGS) -o dana $^ -lfl
 
