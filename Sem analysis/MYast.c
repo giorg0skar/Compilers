@@ -11,6 +11,7 @@
 #include "symbol.h"
 
 static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type t) {
+  //printf("another node in ast\n");
   ast p;
   if ((p = malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
@@ -23,6 +24,7 @@ static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Typ
   p->branch3 = l3;
   p->branch4 = l4;    //each node in the ast has <=4 children
   p->type = t;
+  //printf("node created\n");
   return p;
 }
 
@@ -266,9 +268,10 @@ void checkForBool(ast tr) {
 }
 
 void ast_sem (ast t) {
-  if (t==NULL) return;
+  if (t == NULL) return;
   switch (t->k) {
     case FUNC_DEF:
+      printf("entered func def\n");
       openScope();
       ast_sem(t->branch1);
       ast_sem(t->branch2);
@@ -279,6 +282,7 @@ void ast_sem (ast t) {
       return;
     case HEADER:
       ;
+      printf("entered header\n");
       SymbolEntry *f = newFunction(t->id);
       //f->u.eFunction.resultType = t->type;
 
@@ -333,6 +337,7 @@ void ast_sem (ast t) {
     //   }
     //   return;
     case DECL:
+      printf("entered decl\n");
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
       ast_sem(t->branch1);
@@ -343,7 +348,6 @@ void ast_sem (ast t) {
     case VAR:
       //var definitions
       ;
-      temp;
       for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
         ast_sem(temp);
         temp->type = t->type;
@@ -352,6 +356,7 @@ void ast_sem (ast t) {
       return;
     case ID:
       ;
+      printf("entered id -> %s\n", t->id);
       //check if there's already a variable with the same name in current scope
       char c = t->id[0];
       if (!isalpha(c)) {
@@ -404,6 +409,7 @@ void ast_sem (ast t) {
       //closeScope();
       return;
     case RET:
+      printf("entered return\n");
       //we return an expr and leave the function
       //we must make sure return is inside a function with the same type as the return value
       ast_sem(t->branch1);
@@ -412,7 +418,7 @@ void ast_sem (ast t) {
       int found = 0;
       int foundAFunction = 0;
       for (loop_scope=currentScope; loop_scope != NULL; loop_scope=loop_scope->parent) {
-        for(e = loop_scope->entries; e!=NULL; e=e->nextInScope) {
+        for(e = loop_scope->entries; e != NULL; e=e->nextInScope) {
           if (e->entryType == ENTRY_FUNCTION) {
             foundAFunction = 1;
             if (equalType(e->u.eFunction.resultType, t->branch1->type)) {
@@ -431,8 +437,10 @@ void ast_sem (ast t) {
       }
       time_to_leave = 1;
       leave_code = RETURN;
+      printf("finished return\n");
       return;
     case IF:
+      printf("entered if\n");
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
@@ -442,6 +450,7 @@ void ast_sem (ast t) {
       ast_sem(t->branch3);
       return;
     case IF_ELSE:
+      printf("entered if else\n");
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       if (!equalType(t->branch1->type, typeBoolean)) error("if expects a boolean condition");
@@ -489,7 +498,9 @@ void ast_sem (ast t) {
     case BLOCK:
       //we begin a new block.
       t->num_vars = currentScope->negOffset;
+      printf("block begins\n");
       ast_sem(t->branch1);
+      printf("block ends\n");
       return;
     case PROC_CALL:
       ;
@@ -499,6 +510,7 @@ void ast_sem (ast t) {
       f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
+      t->type = typeVoid;
       ast_sem(t->branch1);
       if (t->branch1 == NULL) {
         if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
@@ -530,12 +542,15 @@ void ast_sem (ast t) {
       return;
     case FUNC_CALL:
       ;
+      printf("calling function %s\n", t->id);
       //calling a previously defined function (with return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with non-void return type
       f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
+      //we make the type of ast node the same as the function's. this is needed in order to use the called function in math calculations
+      t->type = f->u.eFunction.resultType;
       ast_sem(t->branch1);
       if (t->branch1 == NULL) {
         if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
@@ -546,6 +561,7 @@ void ast_sem (ast t) {
       }
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
 
+      printf("passed spot 1\n");
       params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
@@ -553,6 +569,7 @@ void ast_sem (ast t) {
 
       temp = t->branch2;
       params = params->u.eParameter.next;
+      printf("passed spot 2\n");
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
         ast_sem(temp->branch1);
@@ -564,9 +581,11 @@ void ast_sem (ast t) {
       }
       if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+      printf("finished function call\n");
       return;
     case TID:
       ;
+      printf("accesing variable %s\n", t->id);
       char c1 = t->id[0];
       if (!isalpha(c1)) {
         error("variable names have to start with a letter");
@@ -603,6 +622,7 @@ void ast_sem (ast t) {
       t->type = t->branch1->type->refType;
       return;
     case INTCONST:
+      printf("number %d\n", t->num);
       t->type = typeInteger;
       return;
     case CHARCONST:
@@ -649,6 +669,7 @@ void ast_sem (ast t) {
         if (equalType(t->branch2->type, typeChar)) t->type = typeChar;
         else error("type mismatch in * operator");
       }
+      else error("unknown type for * operation");
       return;
     case DIV:
       ast_sem(t->branch1);

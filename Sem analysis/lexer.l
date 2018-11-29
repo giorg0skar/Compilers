@@ -116,9 +116,9 @@ Char {singlequote}{1}.{singlequote}{1}
 			}
 			}
 			else {
-			char t=yytext[0];
-			isNextEOF();
-			return t;
+				char t=yytext[0];
+				isNextEOF();
+				return t;
 			}
 		}
 "def"	{ blockstart=1; newline_block=1;  push(spacecounter); blockcounter++; isNextEOF(); return T_def; }
