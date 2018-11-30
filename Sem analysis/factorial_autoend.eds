@@ -1,8 +1,8 @@
-def main 
-    decl fact is int: n as int
+def solve
 
+    var c is byte
     def fact is int: n as int 
         if n <= 1: return: 1
         else: return: n * fact(n-1)
-    
-    if fact(3) > 5: skip
+    if 8 >= 3 : skip
+    c := 'a'

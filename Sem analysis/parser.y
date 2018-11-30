@@ -98,14 +98,14 @@ program:
 ;
 
 func_def:
-  "def" header local_def block  { $$ = ast_func_def($2,$3,$4); }
+  "def" header local_def block  { printf("func def\n"); $$ = ast_func_def($2,$3,$4); }
 ;
 
 header:
-  T_id                                          { $$ = ast_header($1,typeVoid,NULL,NULL); }
+  T_id                                          { printf("header %s\n", $1); $$ = ast_header($1,typeVoid,NULL,NULL); }
 | T_id "is" data_type                           { $$ = ast_header($1,$3,NULL,NULL); }
 | T_id ':' fpar_def header_part                 { $$ = ast_header($1,typeVoid,$3,$4); }
-| T_id "is" data_type ':' fpar_def header_part  { $$ = ast_header($1,$3,$5,$6); }
+| T_id "is" data_type ':' fpar_def header_part  { printf("header %s\n", $1); $$ = ast_header($1,$3,$5,$6); }
 ;
 
 header_part:
@@ -118,7 +118,7 @@ fpar_def:
 ;
 
 data_type:
-  "int"   { $$ = typeInteger; }
+  "int"   { printf("int\n"); $$ = typeInteger; }
 | "byte"  { $$ = typeChar; }
 ;
 
@@ -141,7 +141,7 @@ fpar_part:
 
 local_def:
   %empty  { $$ = NULL; }
-| func_def local_def    { $$ = ast_seq($1,$2); }
+| func_def local_def    { printf("local func def\n"); $$ = ast_seq($1,$2); }
 | func_decl local_def   { $$ = ast_seq($1,$2); }
 | var_def local_def     { $$ = ast_seq($1,$2); }
 ;
@@ -155,18 +155,18 @@ var_def:
 ;
 
 id:
-  T_id    { $$ = ast_id($1,NULL); }
+  T_id    { printf("id -> %s\n", $1); $$ = ast_id($1,NULL); }
 | T_id id { $$ = ast_id($1,$2); }
 ;
 
 stmt:
-  "skip"            { $$ = ast_skip(); }
+  "skip"            { printf("skip\n"); $$ = ast_skip(); }
 | l_value ":=" expr { $$ = ast_assign($1,$3); }
 | proc_call         { $$ = $1; }
 | "exit"            { $$ = ast_exit(); }
 | "return" ':' expr { $$ = ast_return($3); }
-| "if" cond ':' block if_part  { $$ = ast_if($2,$4,$5); }
 | "if" cond ':' block if_part "else" ':' block  { $$ = ast_if_else($2,$4,$5,$8); }
+| "if" cond ':' block if_part  { $$ = ast_if($2,$4,$5); }
 | "loop" ':' block        { $$ = ast_loop("\0", $3); }
 | "loop" T_id ':' block   { $$ = ast_loop($2,$4); }
 | "break"           { $$ = ast_break(NULL); }
@@ -182,8 +182,8 @@ if_part:
 ;
 
 block:
-  "begin" stmt "end"  { $$ = ast_block($2); }
-| stmt T_end  { $$ = ast_block($1); }
+  "begin" stmt "end"  { printf("begin-end block\n"); $$ = ast_block($2); }
+| stmt T_end  { printf("autoend block\n"); $$ = ast_block($1); }
 ;
 
 proc_call:
@@ -198,18 +198,18 @@ expr_part:
 
 func_call:
   T_id '(' ')'                { $$ = ast_func_call($1,NULL,NULL); }
-| T_id '(' expr expr_part ')' { $$ = ast_func_call($1,$3,$4); }
+| T_id '(' expr expr_part ')' { printf("func call\n"); $$ = ast_func_call($1,$3,$4); }
 ;
 
 l_value:
-  T_id    { $$ = ast_tid($1); }
+  T_id    { printf("lvalue %s\n", $1); $$ = ast_tid($1); }
 | T_string  { $$ = ast_string_lit($1); }
 | l_value '[' expr ']'  { $$ = ast_arr($1,$3); }
 ;
 
 expr:
-  T_intconst    { $$ = ast_int_const($1); }
-| T_char        { $$ = ast_char_const($1); }
+  T_intconst    { printf("num %d\n", $1); $$ = ast_int_const($1); }
+| T_char        { printf("char %c\n", $1); $$ = ast_char_const($1); }
 | l_value       { $$ = $1; }
 | '(' expr ')'  { $$ = $2; }
 | func_call     { $$ = $1; }
@@ -240,8 +240,8 @@ x_cond:
 | expr '=' expr   { $$ = ast_op($1,EQ,$3); }
 | expr "<>" expr  { $$ = ast_op($1,NEQ,$3); }
 | expr '<' expr   { $$ = ast_op($1,LT,$3); }
-| expr '>' expr   { $$ = ast_op($1,GT,$3); }
-| expr "<=" expr  { $$ = ast_op($1,LE,$3); }
+| expr '>' expr   { printf(" > operation\n"); $$ = ast_op($1,GT,$3); }
+| expr "<=" expr  { printf(" <= operation"); $$ = ast_op($1,LE,$3); }
 | expr ">=" expr  { $$ = ast_op($1,GE,$3); }
 ;
 

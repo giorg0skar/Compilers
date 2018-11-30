@@ -87,15 +87,8 @@ Char {singlequote}{1}.{singlequote}{1}
 \t		{ isNextEOF(); spacecounter += 4; }
 \n		{ spacecounter=0; linenumber++;
 			/* def blocks always begin after newline character*/
-			if (newline_block) {
-				newline_block = 0;
-				isNextEOF();
-				return T_begin;
-			}
-			else {
-				BEGIN(NEWLINE);
-				isNextEOF();
-			}
+			BEGIN(NEWLINE);
+			isNextEOF();
 		}
 :		{ if (sameline_block) {
 			if (choice == 0) {
@@ -130,8 +123,9 @@ Char {singlequote}{1}.{singlequote}{1}
  /* in NEWLINE each non-whitespace token we encounter may end a block*/
 <NEWLINE>[ ]	{ isNextEOF(); spacecounter++; }
 <NEWLINE>\t		{ isNextEOF(); spacecounter += 4; }
+<NEWLINE>\r		{ isNextEOF(); spacecounter = 0; }
 <NEWLINE>\n		{ isNextEOF(); spacecounter=0; linenumber++; }
-<NEWLINE>[^ \t\n]	{ 	if ((spacecounter <= mystack[sp]) && (sp > -1) ) {
+<NEWLINE>[^ \t\r\n]	{ 	if ((spacecounter <= mystack[sp]) && (sp > -1) ) {
 							sp--; blockcounter--;
 							/* copy the token we scanned back to be scanned again*/
 							char *yycopy = strdup( yytext );
@@ -190,7 +184,7 @@ Char {singlequote}{1}.{singlequote}{1}
 	/*comment handling*/
 "#"					{ BEGIN(SLCOMMENT); }
 <SLCOMMENT>[^\n]*	{ /* nothing */ }
-<SLCOMMENT>\n		{ linenumber++; spacecounter=0; BEGIN(INITIAL); }
+<SLCOMMENT>\n		{ linenumber++; spacecounter=0; isNextEOF(); BEGIN(INITIAL); }
 
 "(*"				{ commentcounter = 1; BEGIN(MLCOMMENT); }
 <MLCOMMENT>"(*"		{ commentcounter++; }
@@ -203,8 +197,8 @@ Char {singlequote}{1}.{singlequote}{1}
 <STRING>[^"]*		{ return T_string; }
 <STRING>\"			{ BEGIN(INITIAL); }
 
-"<"				{ isNextEOF(); return T_less; }
-">"				{ isNextEOF(); return T_greater; }
+[<]				{ isNextEOF(); return T_less; }
+[>]				{ isNextEOF(); return T_greater; }
 "<="			{ isNextEOF(); return T_lesseq; }
 ">="			{ isNextEOF(); return T_greatereq; }
 "<>"			{ isNextEOF(); return T_noteq; }
