@@ -561,7 +561,6 @@ void ast_sem (ast t) {
       }
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
 
-      printf("passed spot 1\n");
       params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
@@ -569,7 +568,6 @@ void ast_sem (ast t) {
 
       temp = t->branch2;
       params = params->u.eParameter.next;
-      printf("passed spot 2\n");
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
         ast_sem(temp->branch1);
