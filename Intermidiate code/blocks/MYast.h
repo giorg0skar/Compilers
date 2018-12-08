@@ -60,4 +60,8 @@ void ast_sem (ast t);
 
 int ast_run (ast t);
 
+void ast_compile(ast t);
+void prologue();
+void epilogue();
+
 #endif

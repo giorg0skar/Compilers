@@ -813,3 +813,20 @@ void ast_sem (ast t) {
       return;
   }
 }
+
+int label = 0;
+
+void ast_compile(ast t) {
+  if (t == NULL) return;
+  switch(t->k) {
+    case FUNC_DEF:
+      return;
+    case HEADER:
+      return;
+    case DECL:
+      return;
+    case SKIP:
+      printf("%d, -, -, -, -\n", label++);
+      return;
+  }
+}
