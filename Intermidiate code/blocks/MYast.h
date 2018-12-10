@@ -25,6 +25,19 @@ typedef struct node {
   int num_vars;      // BLOCK node
 } *ast;
 
+struct quad_t {
+  int label;
+  char *op;
+  char *op1, *op2, *dest;
+  struct quad_t *next;
+};
+typedef struct quad_t *quad;
+
+typedef struct label_t {
+  int label;
+  struct label_t *next;
+} *labelList;
+
 ast ast_func_def(ast header, ast local, ast block);
 ast ast_header(char *l1, Type t, ast l2, ast l3);
 ast ast_header_part(ast l1, ast l2);

@@ -485,7 +485,8 @@ SymbolEntry * newTemporary (Type type)
 
     if (e != NULL) {
         e->entryType = ENTRY_TEMPORARY;
-        e->u.eVariable.type = type;
+        //e->u.eVariable.type = type;
+        e->u.eTemporary.type = type;
         type->refCount++;
         currentScope->negOffset -= sizeOfType(type);
         e->u.eTemporary.offset = currentScope->negOffset;

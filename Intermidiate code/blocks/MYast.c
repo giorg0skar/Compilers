@@ -11,7 +11,6 @@
 #include "symbol.h"
 
 static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type t) {
-  //printf("another node in ast\n");
   ast p;
   if ((p = malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
@@ -24,7 +23,6 @@ static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Typ
   p->branch3 = l3;
   p->branch4 = l4;    //each node in the ast has <=4 children
   p->type = t;
-  //printf("node created\n");
   return p;
 }
 
@@ -235,6 +233,53 @@ activation_record current_AR = NULL;
   }
 }*/
 
+//INTERMEDIATE CODE STUFF BEGINS HERE------------------------
+quad quadList = NULL;
+
+//generates the quadruple command of the intermediate code
+void genquad(char *op, char *x, char *y, char *z) {
+  quad q, temp;
+  q = (quad) malloc(sizeof(struct quad_t));
+  //quadNext contains the next label number available for a quadruple
+  q->label = quadNext++;
+  q->next = NULL;
+  q->op = (char *) malloc(strlen(op)+1);
+  q->op1 = (char *) malloc(strlen(x)+1);
+  q->op2 = (char *) malloc(strlen(y)+1);
+  q->dest = (char *) malloc(strlen(z)+1);
+  strcpy(q->op, op);
+  strcpy(q->op1, x);
+  strcpy(q->op2, y);
+  strcpy(q->dest, z);
+  //we add the new quadruple to the list of all quadruples
+  if (quadList == NULL) {
+    quadList = q;
+  }
+  else {
+    temp = quadList;
+    while(temp->next != NULL) temp = temp->next;
+    temp->next = q;
+  }
+  return;
+}
+
+labelList makelist(int x) {
+  labelList l;
+  l = (labelList) malloc(sizeof(struct label_t));
+  l->label = x;
+  l->next = NULL;
+  return l;
+}
+
+labelList merge(labelList l1, labelList l2) {
+  labelList temp1 = l1;
+  while(temp1->next != NULL) temp1 = temp1->next;
+  temp1->next = l2;
+  return l1;
+}
+
+//INTERMEDIATE CODE STUFF ENDS----------------------------
+
 SymbolEntry * lookup(char *c) {
   char *name;
   name = (char *) malloc(strlen(c)+1);
@@ -277,7 +322,6 @@ void ast_sem (ast t) {
       ast_sem(t->branch2);
       t->num_vars = currentScope->negOffset;
       ast_sem(t->branch3);
-      //?? stuff
       closeScope();
       return;
     case HEADER:
@@ -287,7 +331,6 @@ void ast_sem (ast t) {
       //f->u.eFunction.resultType = t->type;
 
       //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
-      //ast_sem(t->branch1);
       ast temp;
       Type parType;
       PassMode mode;
@@ -814,7 +857,6 @@ void ast_sem (ast t) {
   }
 }
 
-int label = 0;
 
 void ast_compile(ast t) {
   if (t == NULL) return;
@@ -826,7 +868,22 @@ void ast_compile(ast t) {
     case DECL:
       return;
     case SKIP:
-      printf("%d, -, -, -, -\n", label++);
+      //printf("%d: -, -, -, -\n", quadNext++);
+      //as expected SKIP command's quadruple does nothing
+      genquad("skip", "-", "-", "-");
+      return;
+    case IF:
+      ast_compile(t->branch1);
+      ast_compile(t->branch3);
+      return;
+    case INTCONST:
+      return;
+    case PLUS:
+      ast_compile(t->branch1);
+      ast_compile(t->branch2);
+      SymbolEntry *newtemp = newTemporary(t->type);
+      //printf("%d: +, %s, %s, $%d\n", quadNext++, t->branch1->id, t->branch2->id,newtemp->u.eTemporary.number);
+      genquad("+", t->branch1->id, t->branch2->id, newtemp->id);
       return;
   }
 }
