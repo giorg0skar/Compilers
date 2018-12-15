@@ -262,7 +262,7 @@ int time_to_leave = 0;
 
 //if we're in a condition we convert \x01 and \0 chars to true and false respectively
 void checkForBool(ast tr) {
-  if (tr->type == typeChar)
+  if (equalType(tr->type, typeChar))
     if (strcmp(tr->id,"\0") == 0 || strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
   return;
 }
@@ -342,7 +342,7 @@ void ast_sem (ast t) {
       //branch1 points to header node
       ast_sem(t->branch1);
       //we assume that there are not any functions with the same name and different headers in the same scope
-      SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, false);
+      SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, true);
       forwardFunction(f1);
       return;
     case VAR:
@@ -599,6 +599,14 @@ void ast_sem (ast t) {
         t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
         t->offset = e->u.eVariable.offset;
       }
+      return;
+    case STRING_LIT:
+      //string constant
+      int len = strlen(t->id);
+      // char *strconst;
+      // strconst = (char *) malloc(sizeof(char)*(len + 1);
+      // strcpy(strconst, t->id);
+      t->type = typeArray(len+1, typeChar);
       return;
     case ARR:
       //branch1-> l_value, branch2-> expr
