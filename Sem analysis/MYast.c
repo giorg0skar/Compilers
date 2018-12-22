@@ -601,6 +601,7 @@ void ast_sem (ast t) {
       }
       return;
     case STRING_LIT:
+      ;
       //string constant
       int len = strlen(t->id);
       // char *strconst;
