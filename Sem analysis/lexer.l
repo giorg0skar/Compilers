@@ -194,7 +194,8 @@ Char {singlequote}{1}.{singlequote}{1}
 <MLCOMMENT>[^*\n(]*	{ /* nothing */ }
 
 "\""				{ BEGIN(STRING); }
-<STRING>[^"]*		{ return T_string; }
+<STRING>\n			{ yyerror("string cannot span over a single line"); }
+<STRING>[^"\n]*		{ return T_string; }
 <STRING>\"			{ BEGIN(INITIAL); }
 
 
