@@ -366,7 +366,7 @@ void ast_sem (ast t) {
       SymbolEntry *e = lookupEntry(t->id,LOOKUP_CURRENT_SCOPE,false);
       if (e!=NULL) {
         strcat(t->id, "\\0");
-        error("there is already a variable with the name: %s\n", t->id);
+        error("there is already a variable with the name: $s\n", t->id);
       }
       return;
     case SKIP:
