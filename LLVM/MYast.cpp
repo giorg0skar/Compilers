@@ -6,14 +6,18 @@
 //#include <string>
 //#include <cstdio>
 //#include <cstdlib>
-#include "MYast.h"
-#include "error.h"
-#include "symbol.h"
+#include "MYast.hpp"
+//#include "error.hpp"
+//#include "symbol.hpp"
+extern "C" {
+  #include "error.h"
+  #include "symbol.h"
+}
 
 static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type t) {
   //printf("another node in ast\n");
   ast p;
-  if ((p = malloc(sizeof(struct node))) == NULL) exit(1);
+  if ((p = (ast) malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
   p->id = (char *) malloc(sizeof(strlen(c + 1)));
   //p->id = c;

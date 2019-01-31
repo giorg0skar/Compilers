@@ -1,7 +1,7 @@
 #ifndef __AST_H__
 #define __AST_H__
 
-#include "symbol.h"
+#include "symbol.hpp"
 
 typedef enum {
   PROGRAM, HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF,
