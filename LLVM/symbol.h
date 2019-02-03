@@ -228,4 +228,9 @@ void          printType          (Type type);
 void          printMode          (PassMode mode);
 
 
+int isPointer(Type type);
+int isArray(Type type);
+int isIArray(Type type);
+
+
 #endif
