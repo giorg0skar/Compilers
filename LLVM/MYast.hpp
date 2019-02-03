@@ -2,7 +2,7 @@
 #define __AST_H__
 
 extern "C"{
-#include "symbol.h"
+  #include "symbol.h"
 }
 typedef enum {
   PROGRAM, HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF,
@@ -20,18 +20,18 @@ typedef struct node {
   char *id;
   int num;
   struct node *branch1, *branch2, *branch3, *branch4;
-  Type type;
+  Type_h type;
   int nesting_diff;  // ID and LET nodes
   int offset;        // ID and LET nodes
   int num_vars;      // BLOCK node
 } *ast;
 
 ast ast_func_def(ast header, ast local, ast block);
-ast ast_header(char *l1, Type t, ast l2, ast l3);
+ast ast_header(char *l1, Type_h t, ast l2, ast l3);
 ast ast_header_part(ast l1, ast l2);
-ast ast_fpar_def(ast l1, Type t);
+ast ast_fpar_def(ast l1, Type_h t);
 ast ast_decl (ast l1);
-ast ast_var(ast idlist, Type t);
+ast ast_var(ast idlist, Type_h t);
 ast ast_id (char *c, ast next);
 ast ast_op (ast l, kind op, ast r);
 ast ast_skip();

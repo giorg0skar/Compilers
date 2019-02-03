@@ -7,20 +7,30 @@
 //#include <cstdio>
 //#include <cstdlib>
 #include "MYast.hpp"
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Transforms/Scalar.h>
 #include <llvm/IR/Instructions.h>
-//#include "error.hpp"
-//#include "symbol.hpp"
+#if defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR >= 4
+#include <llvm/Transforms/Scalar/GVN.h>
+#endif
 extern "C" {
   #include "error.h"
   #include "symbol.h"
 }
 
-static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type t) {
+using namespace llvm;
+
+static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type_h t) {
   //printf("another node in ast\n");
   ast p;
   if ((p = (ast) malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
-  p->id = (char *) malloc(sizeof(strlen(c + 1)));
+  p->id = (char *) malloc(sizeof(strlen(c)+1));
   //p->id = c;
   strcpy(p->id, c);
   p->num = n;
@@ -41,7 +51,7 @@ ast ast_func_def(ast header, ast local, ast block) {
   return ast_make(FUNC_DEF,"\0", 0, header, local, block, NULL, NULL);
 }
 
-ast ast_header(char *l1, Type t, ast l2, ast l3) {
+ast ast_header(char *l1, Type_h t, ast l2, ast l3) {
   return ast_make(HEADER, l1, 0, l2, l3, NULL, NULL, t);
 }
 
@@ -49,7 +59,7 @@ ast ast_header_part(ast l1, ast l2) {
   return ast_make(HEADER_PART, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
-ast ast_fpar_def(ast l1, Type t) {
+ast ast_fpar_def(ast l1, Type_h t) {
   return ast_make(FPAR_DEF, "\0", 0, l1, NULL, NULL, NULL, t);
 }
 
@@ -61,7 +71,7 @@ ast ast_decl (ast l1) {
   return ast_make(DECL, "\0", 0, l1, NULL, NULL, NULL, NULL);
 }
 
-ast ast_var(ast idlist, Type t) {
+ast ast_var(ast idlist, Type_h t) {
   return ast_make(VAR, "\0", 0, idlist, NULL, NULL, NULL, t);
 }
 
@@ -167,6 +177,32 @@ ast ast_or_expr(ast l1, ast l2) {
   return ast_make(EXPR_OR, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
+// Global LLVM variables related to the LLVM suite.
+static LLVMContext TheContext;
+static IRBuilder<> Builder(TheContext);
+static std::unique_ptr<Module> TheModule;
+static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
+
+// Global LLVM variables related to the generated code.
+static GlobalVariable *TheVars;
+static GlobalVariable *TheNL;
+static Function *TheWriteInteger;
+static Function *TheWriteString;
+
+// Useful LLVM types.
+static Type * i8 = IntegerType::get(TheContext, 8);
+static Type * i32 = IntegerType::get(TheContext, 32);
+static Type * i64 = IntegerType::get(TheContext, 64);
+
+// Useful LLVM helper functions.
+inline ConstantInt* c8(char c) {
+  return ConstantInt::get(TheContext, APInt(8, c, true));
+}
+inline ConstantInt* c32(int n) {
+  return ConstantInt::get(TheContext, APInt(32, n, true));
+}
+
+
 #define NOTHING 0
 
 struct activation_record_tag {
@@ -248,7 +284,7 @@ SymbolEntry * lookup(char *c) {
   return lookupEntry(name, LOOKUP_ALL_SCOPES, true);
 }
 
-SymbolEntry * insert(char *c, Type t) {
+SymbolEntry * insert(char *c, Type_h t) {
   char *name;
   name = (char *) malloc(strlen(c)+1);
   //name[0] = c;
@@ -295,7 +331,7 @@ void ast_sem (ast t) {
       //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
       //ast_sem(t->branch1);
       ast temp;
-      Type parType;
+      Type_h parType;
       PassMode mode;
       if (t->branch1 != NULL) {
         temp = t->branch1;    //temp now shows to fpar_def node. branch1 of that node is the beginning of the list of id nodes
@@ -482,7 +518,7 @@ void ast_sem (ast t) {
     case LOOP: {
       //we need to remember the loop's name if it has one
       if (strcmp(t->id, "\0") != 0) {
-        Type ctype = typeArray(strlen(t->id + 1), typeChar);
+        Type_h ctype = typeArray(strlen(t->id + 1), typeChar);
         SymbolEntry *e = newConstant(t->id, ctype, t->id);
       }
       //we open a new scope inside a loop
@@ -607,7 +643,7 @@ void ast_sem (ast t) {
     }
     case TID: {
       ;
-      printf("accesing variable %s\n", t->id);
+      //printf("accesing variable %s\n", t->id);
       char c1 = t->id[0];
       if (!isalpha(c1)) {
         error("variable names have to start with a letter");
@@ -656,7 +692,7 @@ void ast_sem (ast t) {
       return;
     }
     case INTCONST: {
-      printf("number %d\n", t->num);
+      //printf("number %d\n", t->num);
       t->type = typeInteger;
       return;
     }
@@ -865,4 +901,83 @@ void ast_sem (ast t) {
       return;
     }
   }
+}
+
+Value * ast_compile(ast t) {
+  if (t == nullptr) return nullptr;
+  switch(t->k) {
+    case FUNC_DEF: {
+      return nullptr;
+    }
+    case SEQ: {
+      ast_compile(t->branch1);
+      ast_compile(t->branch2);
+      return nullptr;
+    }
+    case INTCONST: {
+      return c32(t->num);
+    }
+    case CHARCONST: {
+      char c = (t->id)[0];
+      return c8(c);
+    }
+    case PLUS: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateAdd(l, r, "addtmp");
+    }
+    case MINUS: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateSub(l, r, "subtmp");
+    }
+    case TIMES: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateMul(l, r, "multmp");
+    }
+    case DIV: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateSDiv(l, r, "divtmp");
+    }
+    case MOD: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateSRem(l, r, "modtmp");
+    }
+  }
+  return nullptr;
+}
+
+void llvm_compile_and_dump(ast t) {
+  // Initialize the module and the optimization passes.
+  TheModule = make_unique<Module>("dana program", TheContext);
+  TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
+  TheFPM->add(createPromoteMemoryToRegisterPass());
+  TheFPM->add(createInstructionCombiningPass());
+  TheFPM->add(createReassociatePass());
+  TheFPM->add(createGVNPass());
+  TheFPM->add(createCFGSimplificationPass());
+  TheFPM->doInitialization();
+
+  // Define and start the main function.
+  Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
+  Function* main = cast<Function>(c);
+  BasicBlock *BB = BasicBlock::Create(TheContext, "entry", main);
+  Builder.SetInsertPoint(BB);
+  // Emit the program code.
+  ast_compile(t);
+  Builder.CreateRet(c32(0));
+  // Verify and optimize the main function.
+  bool bad = verifyModule(*TheModule, &errs());
+  if (bad) {
+    fprintf(stderr, "The faulty IR is:\n");
+    fprintf(stderr, "------------------------------------------------\n\n");
+    TheModule->print(outs(), nullptr);
+    return;
+  }
+  TheFPM->run(*main);
+  // Print out the IR.
+  TheModule->print(outs(), nullptr);
 }

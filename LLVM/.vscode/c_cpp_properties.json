@@ -4,7 +4,10 @@
             "name": "Linux",
             "includePath": [
                 "usr/include",
-                "${workspaceFolder}/**"
+                "usr/bin/include",
+                "${workspaceFolder}/**",
+                "/usr/include/llvm-5.0",
+                "/usr/include/llvm-c-5.0"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

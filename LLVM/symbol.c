@@ -51,11 +51,11 @@ static struct Type_tag typeConst [] = {
     { TYPE_REAL,    NULL, 0, 0 }
 };
 
-const Type typeVoid    = &(typeConst[0]);
-const Type typeInteger = &(typeConst[1]);
-const Type typeBoolean = &(typeConst[2]);
-const Type typeChar    = &(typeConst[3]);
-const Type typeReal    = &(typeConst[4]);
+const Type_h typeVoid    = &(typeConst[0]);
+const Type_h typeInteger = &(typeConst[1]);
+const Type_h typeBoolean = &(typeConst[2]);
+const Type_h typeChar    = &(typeConst[3]);
+const Type_h typeReal    = &(typeConst[4]);
 
 
 /* ---------------------------------------------------------------------
@@ -231,7 +231,7 @@ static SymbolEntry * newEntry (const char * name)
     return e;
 }
 
-SymbolEntry * newVariable (const char * name, Type type)
+SymbolEntry * newVariable (const char * name, Type_h type)
 {
     SymbolEntry * e = newEntry(name);
 
@@ -251,7 +251,7 @@ SymbolEntry * newVariable (const char * name, Type type)
     return e;
 }
 
-SymbolEntry * newConstant (const char * name, Type type, ...)
+SymbolEntry * newConstant (const char * name, Type_h type, ...)
 {
     SymbolEntry * e;
     va_list ap;
@@ -373,7 +373,7 @@ SymbolEntry * newFunction (const char * name)
     }
 }
 
-SymbolEntry * newParameter (const char * name, Type type,
+SymbolEntry * newParameter (const char * name, Type_h type,
                             PassMode mode, SymbolEntry * f)
 {
     SymbolEntry * e;
@@ -447,7 +447,7 @@ void forwardFunction (SymbolEntry * f)
     f->u.eFunction.isForward = true;
 }
 
-void endFunctionHeader (SymbolEntry * f, Type type)
+void endFunctionHeader (SymbolEntry * f, Type_h type)
 {
     if (f->entryType != ENTRY_FUNCTION)
         internal("Cannot end parameters in a non-function");
@@ -475,7 +475,7 @@ void endFunctionHeader (SymbolEntry * f, Type type)
     f->u.eFunction.pardef = PARDEF_COMPLETE;
 }
 
-SymbolEntry * newTemporary (Type type)
+SymbolEntry * newTemporary (Type_h type)
 {
     char buffer[10];
     SymbolEntry * e;
@@ -557,9 +557,9 @@ SymbolEntry * lookupEntry (const char * name, LookupType type, bool err)
     return NULL;
 }
 
-Type typeArray (RepInteger size, Type refType)
+Type_h typeArray (RepInteger size, Type_h refType)
 {
-    Type n = (Type) new(sizeof(struct Type_tag));
+    Type_h n = (Type_h) new(sizeof(struct Type_tag));
 
     n->kind     = TYPE_ARRAY;
     n->refType  = refType;
@@ -571,9 +571,9 @@ Type typeArray (RepInteger size, Type refType)
     return n;
 }
 
-Type typeIArray (Type refType)
+Type_h typeIArray (Type_h refType)
 {
-    Type n = (Type) new(sizeof(struct Type_tag));
+    Type_h n = (Type_h) new(sizeof(struct Type_tag));
 
     n->kind     = TYPE_IARRAY;
     n->refType  = refType;
@@ -584,9 +584,9 @@ Type typeIArray (Type refType)
     return n;
 }
 
-Type typePointer (Type refType)
+Type_h typePointer (Type_h refType)
 {
-    Type n = (Type) new(sizeof(struct Type_tag));
+    Type_h n = (Type_h) new(sizeof(struct Type_tag));
 
     n->kind     = TYPE_POINTER;
     n->refType  = refType;
@@ -597,7 +597,7 @@ Type typePointer (Type refType)
     return n;
 }
 
-void destroyType (Type type)
+void destroyType (Type_h type)
 {
     switch (type->kind) {
         case TYPE_ARRAY:
@@ -610,11 +610,11 @@ void destroyType (Type type)
     }
 }
 
-unsigned int sizeOfType (Type type)
+unsigned int sizeOfType (Type_h type)
 {
     switch (type->kind) {
         case TYPE_VOID:
-            internal("Type void has no size");
+            internal("Type_h void has no size");
             break;
         case TYPE_INTEGER:
         case TYPE_IARRAY:
@@ -631,7 +631,7 @@ unsigned int sizeOfType (Type type)
     return 0;
 }
 
-bool equalType (Type type1, Type type2)
+bool equalType (Type_h type1, Type_h type2)
 {
     if (type1->kind != type2->kind)
         return false;
@@ -646,7 +646,7 @@ bool equalType (Type type1, Type type2)
     return true;
 }
 
-void printType (Type type)
+void printType (Type_h type)
 {
     if (type == NULL) {
         printf("<undefined>");
@@ -690,12 +690,12 @@ void printMode (PassMode mode)
         printf("var ");
 }
 
-int isPointer(Type type) {
+int isPointer(Type_h type) {
     return type->kind == TYPE_POINTER;
 }
-int isArray(Type type){
+int isArray(Type_h type){
     return type->kind == TYPE_ARRAY;
 }
-int isIArray(Type type){
+int isIArray(Type_h type){
     return type->kind == TYPE_IARRAY;
 }

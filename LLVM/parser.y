@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "MYast.h"
-#include "symbol.h"
+#include "MYast.hpp"
+//#include "symbol.h"
 //#include <vector>
 //#include <string>
 
