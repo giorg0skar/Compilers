@@ -7,7 +7,9 @@
                 "usr/bin/include",
                 "${workspaceFolder}/**",
                 "/usr/include/llvm-5.0",
-                "/usr/include/llvm-c-5.0"
+                "/usr/include/llvm-c-5.0",
+                "/usr/include/llvm-6.0",
+                "/usr/include/llvm-c-6.0"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

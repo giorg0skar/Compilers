@@ -1,7 +1,7 @@
 %{
 #include <stdio.h>
-#include "MYast.h"
-#include "parser.h"
+#include "MYast.hpp"
+#include "parser.hpp"
 // #include "symbol.h"
 //#include "y.tab.h"
 

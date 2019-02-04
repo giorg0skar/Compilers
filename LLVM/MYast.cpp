@@ -909,6 +909,9 @@ Value * ast_compile(ast t) {
     case FUNC_DEF: {
       return nullptr;
     }
+    case HEADER: {
+      return nullptr;
+    }
     case SEQ: {
       ast_compile(t->branch1);
       ast_compile(t->branch2);
@@ -945,6 +948,16 @@ Value * ast_compile(ast t) {
       Value *l = ast_compile(t->branch1);
       Value *r = ast_compile(t->branch2);
       return Builder.CreateSRem(l, r, "modtmp");
+    }
+    case AND: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateAnd(l, r, "andtmp");
+    }
+    case OR: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateOr(l, r, "ortmp");
     }
   }
   return nullptr;
