@@ -245,35 +245,6 @@ activation_record current_AR = NULL;
       for (int i = 0; i < t->nesting_diff; ++i) ar = ar->previous;
       return ar->data[t->offset];
     }
-    case PLUS:
-      return ast_run(t->branch1) + ast_run(t->branch2);
-    case MINUS:
-      return ast_run(t->branch1) - ast_run(t->branch2);
-    case TIMES:
-      return ast_run(t->branch1) * ast_run(t->branch2);
-    case DIV:
-      return ast_run(t->branch1) / ast_run(t->branch2);
-    case MOD:
-      return ast_run(t->branch1) % ast_run(t->branch2);
-    case LT:
-      return ast_run(t->branch1) < ast_run(t->branch2);
-    case GT:
-      return ast_run(t->branch1) > ast_run(t->branch2);
-    case LE:
-      return ast_run(t->branch1) <= ast_run(t->branch2);
-    case GE:
-      return ast_run(t->branch1) >= ast_run(t->branch2);
-    case EQ:
-      return ast_run(t->branch1) == ast_run(t->branch2);
-    case NE:
-      return ast_run(t->branch1) != ast_run(t->branch2);
-    case AND:
-      return ast_run(t->branch1) && ast_run(t->branch2);
-    case OR:
-      return ast_run(t->branch1) || ast_run(t->branch2);
-    case NOT:
-      return !ast_run(t->branch2);
-  }
 }*/
 
 SymbolEntry * lookup(char *c) {
@@ -296,7 +267,7 @@ SymbolEntry * insert(char *c, Type_h t) {
 enum {
   EXITING,
   BREAKING,
-  RETURN
+  RETURNING
 } leave_code;
 
 int time_to_leave = 0;
@@ -486,7 +457,7 @@ void ast_sem (ast t) {
         else error("return command used but no function found");
       }
       time_to_leave = 1;
-      leave_code = RETURN;
+      leave_code = RETURNING;
       printf("finished return\n");
       return;
     }
@@ -903,18 +874,59 @@ void ast_sem (ast t) {
   }
 }
 
+
 Value * ast_compile(ast t) {
   if (t == nullptr) return nullptr;
   switch(t->k) {
     case FUNC_DEF: {
+      //TO-BE-DONE cases
       return nullptr;
     }
     case HEADER: {
       return nullptr;
     }
+    case DECL: {
+      return nullptr;
+    }
+    case VAR: {
+      return nullptr;
+    }
+    case ID: {
+      return nullptr;
+    }
+    case SKIP: {
+      return nullptr;
+    }
+    case ASSIGN: {
+      return nullptr;
+    }
+    case EXIT: {
+      return nullptr;
+    }
+    case RET: {
+      return nullptr;
+    }
+    case IF: {
+      return nullptr;
+    }
+    case IF_ELSE: {
+      return nullptr;
+    }
+    case LOOP: {
+      return nullptr;
+    }
+    case BREAK: {
+      return nullptr;
+    }
+    case CONT: {
+      return nullptr;
+    }
     case SEQ: {
       ast_compile(t->branch1);
       ast_compile(t->branch2);
+      return nullptr;
+    }
+    case BLOCK: {
       return nullptr;
     }
     case INTCONST: {
@@ -949,6 +961,10 @@ Value * ast_compile(ast t) {
       Value *r = ast_compile(t->branch2);
       return Builder.CreateSRem(l, r, "modtmp");
     }
+    case NOT: {
+      Value *l = ast_compile(t->branch1);
+      return Builder.CreateNot(l, "nottmp");
+    }
     case AND: {
       Value *l = ast_compile(t->branch1);
       Value *r = ast_compile(t->branch2);
@@ -958,6 +974,36 @@ Value * ast_compile(ast t) {
       Value *l = ast_compile(t->branch1);
       Value *r = ast_compile(t->branch2);
       return Builder.CreateOr(l, r, "ortmp");
+    }
+    case EQ: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpEQ(l, r, "equaltmp");
+    }
+    case LT: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpSLT(l, r, "lowertmp");
+    }
+    case GT: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpSGT(l, r, "greatertmp");
+    }
+    case LE: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpSLE(l, r, "lowerorequaltmp");
+    }
+    case GE: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpSGE(l, r, "greaterorequaltmp");
+    }
+    case NEQ: {
+      Value *l = ast_compile(t->branch1);
+      Value *r = ast_compile(t->branch2);
+      return Builder.CreateICmpNE(l, r, "nequaltmp");
     }
   }
   return nullptr;
@@ -974,6 +1020,20 @@ void llvm_compile_and_dump(ast t) {
   TheFPM->add(createCFGSimplificationPass());
   TheFPM->doInitialization();
 
+  // declare void @writeInteger(i64)
+  FunctionType *writeInteger_type =
+    FunctionType::get(Type::getVoidTy(TheContext),
+                      std::vector<Type *>{ i64 }, false);
+  TheWriteInteger =
+    Function::Create(writeInteger_type, Function::ExternalLinkage,
+                     "writeInteger", TheModule.get());
+  // declare void @writeString(i8*)
+  FunctionType *writeString_type =
+    FunctionType::get(Type::getVoidTy(TheContext),
+                      std::vector<Type *>{ PointerType::get(i8, 0) }, false);
+  TheWriteString =
+    Function::Create(writeString_type, Function::ExternalLinkage,
+                     "writeString", TheModule.get());
   // Define and start the main function.
   Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
   Function* main = cast<Function>(c);
