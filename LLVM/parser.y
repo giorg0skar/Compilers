@@ -10,6 +10,8 @@
 void yyerror (const char *msg);
 
 //vector<string> *ids; 
+int yylex(void);
+
 extern int linenumber;
 ast t;
 %}
@@ -19,7 +21,7 @@ ast t;
   char *s;
   char c;
   int n;
-  Type t;
+  Type_h t;
 }
 
 //%start program

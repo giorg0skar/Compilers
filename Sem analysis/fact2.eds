@@ -1,0 +1,3 @@
+def fact is int: n as int ^M
+    if n <= 1: return: 1^M
+    else: return: n * fact(n-1)^M

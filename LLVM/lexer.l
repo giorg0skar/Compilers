@@ -1,4 +1,13 @@
+%option noyywrap
+
 %{
+
+#ifdef __cplusplus
+static int yyinput (void );
+#else
+static int input (void );
+#endif
+
 #include <stdio.h>
 #include "MYast.hpp"
 #include "parser.hpp"
@@ -225,7 +234,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*\n			{ linenumber++; } */
 
-.			{ yyerror("illegal character"); }
+.			{ yyerror(yytext); }
 
 %%
 
@@ -233,7 +242,7 @@ Char {singlequote}{1}.{singlequote}{1}
 //if the next character from input is EOF then go to FINAL state to prepare to close any open blocks 
 void isNextEOF(void) {
 	register int c;
-	c=input();
+	c=yyinput();
 	if (c!=EOF) {
 		unput(c);
 		return;

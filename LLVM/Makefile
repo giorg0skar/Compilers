@@ -27,8 +27,13 @@ MYast.o: MYast.cpp MYast.hpp
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<
 
-dana: lexer.o parser.o MYast.o
-	$(CXX) $(CXXFLAGS) -o dana $^ $(LDFLAGS) -lfl
+symbol.o: symbol.c symbol.h
+	gcc -c symbol.c
+
+
+
+dana: lexer.o parser.o MYast.o symbol.o error.o general.o
+	$(CXX) $(CXXFLAGS) -o dana $^ $(LDFLAGS) 
 
 clean:
 	$(RM) lexer.cpp parser.cpp parser.hpp parser.output a.* *.o *~

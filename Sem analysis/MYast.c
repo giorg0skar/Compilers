@@ -173,67 +173,6 @@ typedef struct activation_record_tag * activation_record;
 
 activation_record current_AR = NULL;
 
-/*int ast_run (ast t) {
-  if (t == NULL) return NOTHING;
-  switch (t->k) {
-    case SKIP:
-      return NOTHING;
-    case PROGRAM:
-      ast_run(t->branch1); //??
-      return NOTHING;
-    case PRINT:
-      printf("%d\n", ast_run(t->branch1));
-      return NOTHING;
-    case IF:
-      if (ast_run(t->branch1) != 0) ast_run(t->branch2);
-      return NOTHING;
-    case IF_ELSE:
-      if (ast_run(t->branch1) != 0) ast_run(t->branch2);
-      //else if (ast_run(t->branch3->branch1) != 0) ast_run(t->branch3);
-      ast_run(t->branch3);
-      //  NOTE: needs work for else_if
-      else ast_run(t->branch4);     //branch3,4 are extra ast parameters to each block specifically for cases like if...elif...else
-      return NOTHING;
-    case LOOP:
-      for(;;) {
-        ast_run(t->branch2);  // NOTE:unfinished
-      }
-      return NOTHING;
-    case ID: {
-      activation_record ar = current_AR;
-      for (int i = 0; i < t->nesting_diff; ++i) ar = ar->previous;
-      return ar->data[t->offset];
-    }
-    case PLUS:
-      return ast_run(t->branch1) + ast_run(t->branch2);
-    case MINUS:
-      return ast_run(t->branch1) - ast_run(t->branch2);
-    case TIMES:
-      return ast_run(t->branch1) * ast_run(t->branch2);
-    case DIV:
-      return ast_run(t->branch1) / ast_run(t->branch2);
-    case MOD:
-      return ast_run(t->branch1) % ast_run(t->branch2);
-    case LT:
-      return ast_run(t->branch1) < ast_run(t->branch2);
-    case GT:
-      return ast_run(t->branch1) > ast_run(t->branch2);
-    case LE:
-      return ast_run(t->branch1) <= ast_run(t->branch2);
-    case GE:
-      return ast_run(t->branch1) >= ast_run(t->branch2);
-    case EQ:
-      return ast_run(t->branch1) == ast_run(t->branch2);
-    case NE:
-      return ast_run(t->branch1) != ast_run(t->branch2);
-    case AND:
-      return ast_run(t->branch1) && ast_run(t->branch2);
-    case OR:
-      return ast_run(t->branch1) || ast_run(t->branch2);
-    case NOT:
-      return !ast_run(t->branch2);
-  }
-}*/
 
 SymbolEntry * lookup(char *c) {
   char *name;
@@ -277,7 +216,6 @@ void ast_sem (ast t) {
       ast_sem(t->branch2);
       t->num_vars = currentScope->negOffset;
       ast_sem(t->branch3);
-      //?? stuff
       closeScope();
       return;
     case HEADER:
@@ -465,7 +403,7 @@ void ast_sem (ast t) {
     case LOOP:
       //we need to remember the loop's name if it has one
       if (strcmp(t->id, "\0") != 0) {
-        Type ctype = typeArray(strlen(t->id + 1), typeChar);
+        Type ctype = typeArray(strlen(t->id) + 1, typeChar);
         SymbolEntry *e = newConstant(t->id, ctype, t->id);
       }
       //we open a new scope inside a loop
@@ -507,6 +445,7 @@ void ast_sem (ast t) {
       //calling a previously defined function (with no return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with void return type
+      printf("accessing procedure %s\n", t->id);
       f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
@@ -539,6 +478,7 @@ void ast_sem (ast t) {
       }
       if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+      printf("leaving procedure %s\n", t->id);
       return;
     case FUNC_CALL:
       ;

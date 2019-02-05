@@ -154,7 +154,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*------------------------end of layout--------------------------------- */
 
-<<EOF>> 		{ return T_eof; }
+<<EOF>> 		{ printf("hello world");return T_eof; }
 
 "and"			{ isNextEOF(); return T_and; }
 "as"			{ isNextEOF(); return T_as; }
@@ -207,9 +207,9 @@ Char {singlequote}{1}.{singlequote}{1}
 	/*extra regular expression-whenever you find the following return the ascii character*/
 
 [(),=+\-*/%!&|><]	{ char t=yytext[0]; isNextEOF(); 
-					  if (t == '<') return T_less;
-					  else if (t == '>') return T_greater;
-					  else return t; 
+					   if (t == '<') return T_less;
+					   else if (t == '>') return T_greater;
+					   return t; 
 					}
 
 "["			{ char t=yytext[0]; isNextEOF(); return t; }
@@ -225,7 +225,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*\n			{ linenumber++; } */
 
-.			{ yyerror("illegal character"); }
+.			{ printf("%d", yytext[0]); exit(1);yyerror("illegal character "); }
 
 %%
 
@@ -234,11 +234,13 @@ Char {singlequote}{1}.{singlequote}{1}
 void isNextEOF(void) {
 	register int c;
 	c=input();
-	if (c!=EOF) {
+	if (c!=0) {
+		//printf("%d\n",c);
 		unput(c);
 		return;
 	}
 	else {
+		printf("2");
 		BEGIN(FINAL);
 		unput('0');
 		return;
