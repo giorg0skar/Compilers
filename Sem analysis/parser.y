@@ -258,6 +258,8 @@ int main() {
     if (yyparse()) return 1;
     printf("Parsing was succesful!\n");
     initSymbolTable(997);
+    // openScope();
+    // set_lib_functions();
     ast_sem(t);
     //ast_run(t);
     destroySymbolTable();

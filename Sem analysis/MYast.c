@@ -209,7 +209,7 @@ void checkForBool(ast tr) {
 void ast_sem (ast t) {
   if (t == NULL) return;
   switch (t->k) {
-    case FUNC_DEF:
+    case FUNC_DEF: {
       printf("entered func def\n");
       openScope();
       ast_sem(t->branch1);
@@ -218,7 +218,8 @@ void ast_sem (ast t) {
       ast_sem(t->branch3);
       closeScope();
       return;
-    case HEADER:
+    }
+    case HEADER: {
       ;
       printf("entered header\n");
       SymbolEntry *f = newFunction(t->id);
@@ -263,6 +264,7 @@ void ast_sem (ast t) {
 
       endFunctionHeader(f, t->type);
       return;
+    }
     // case FPAR_DEF:
     //   //this case may not need to get accessed. --> most likely.
     //   ;
@@ -274,7 +276,7 @@ void ast_sem (ast t) {
     //     temp->type = t->type;
     //   }
     //   return;
-    case DECL:
+    case DECL: {
       printf("entered decl\n");
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
@@ -283,16 +285,18 @@ void ast_sem (ast t) {
       SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, true);
       forwardFunction(f1);
       return;
-    case VAR:
+    }
+    case VAR: {
       //var definitions
       ;
-      for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
+      for(ast temp=t->branch1; temp!=NULL; temp=temp->branch1) {
         ast_sem(temp);
         temp->type = t->type;
         SymbolEntry *v = newVariable(temp->id, t->type);
       }
       return;
-    case ID:
+    }
+    case ID: {
       ;
       printf("entered id -> %s\n", t->id);
       //check if there's already a variable with the same name in current scope
@@ -307,9 +311,10 @@ void ast_sem (ast t) {
         error("there is already a variable with the name: %s\n", t->id);
       }
       return;
+    }
     case SKIP:
       return;
-    case ASSIGN:
+    case ASSIGN: {
       //WARNING: still need to check the case where k = STRING_LIT.
       //assign a value to a variable
       ast_sem(t->branch1);
@@ -339,14 +344,16 @@ void ast_sem (ast t) {
         t->offset = v->u.eVariable.offset;
       }
       return;
-    case EXIT:
+    }
+    case EXIT: {
       //we exit a block. it must not have a return type
       //we must make sure exit is inside a function with return type: void
       time_to_leave = 1;
       leave_code = EXITING;
       //closeScope();
       return;
-    case RET:
+    }
+    case RET: {
       printf("entered return\n");
       //we return an expr and leave the function
       //we must make sure return is inside a function with the same type as the return value
@@ -356,7 +363,8 @@ void ast_sem (ast t) {
       int found = 0;
       int foundAFunction = 0;
       for (loop_scope=currentScope; loop_scope != NULL; loop_scope=loop_scope->parent) {
-        for(e = loop_scope->entries; e != NULL; e=e->nextInScope) {
+        SymbolEntry *e;
+        for(e = loop_scope->entries; e != NULL; e = e->nextInScope) {
           if (e->entryType == ENTRY_FUNCTION) {
             foundAFunction = 1;
             if (equalType(e->u.eFunction.resultType, t->branch1->type)) {
@@ -377,7 +385,8 @@ void ast_sem (ast t) {
       leave_code = RETURN;
       printf("finished return\n");
       return;
-    case IF:
+    }
+    case IF: {
       printf("entered if\n");
       ast_sem(t->branch1);
       checkForBool(t->branch1);
@@ -387,7 +396,8 @@ void ast_sem (ast t) {
       closeScope();
       ast_sem(t->branch3);
       return;
-    case IF_ELSE:
+    }
+    case IF_ELSE: {
       printf("entered if else\n");
       ast_sem(t->branch1);
       checkForBool(t->branch1);
@@ -400,7 +410,8 @@ void ast_sem (ast t) {
       ast_sem(t->branch4);
       closeScope();
       return;
-    case LOOP:
+    }
+    case LOOP: {
       //we need to remember the loop's name if it has one
       if (strcmp(t->id, "\0") != 0) {
         Type ctype = typeArray(strlen(t->id) + 1, typeChar);
@@ -411,7 +422,8 @@ void ast_sem (ast t) {
       ast_sem(t->branch1);
       closeScope();
       return;
-    case BREAK:
+    }
+    case BREAK: {
       if (strcmp(t->id, "\0") != 0) {
         //the break stops a specific loop
         SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
@@ -421,7 +433,8 @@ void ast_sem (ast t) {
       time_to_leave = 1;
       leave_code = BREAKING;
       return;
-    case CONT:
+    }
+    case CONT: {
       if (strcmp(t->id, "\0") != 0) {
         //continue begins the next iteration of a specific loop
         SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
@@ -429,24 +442,26 @@ void ast_sem (ast t) {
         if(l->nestingLevel > currentScope->nestingLevel) error("continue isn't located inside the %s loop", t->id);
       }
       return;
+    }
     case SEQ:
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       return;
-    case BLOCK:
+    case BLOCK: {
       //we begin a new block.
       t->num_vars = currentScope->negOffset;
       printf("block begins\n");
       ast_sem(t->branch1);
       printf("block ends\n");
       return;
-    case PROC_CALL:
+    }
+    case PROC_CALL: {
       ;
       //calling a previously defined function (with no return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with void return type
       printf("accessing procedure %s\n", t->id);
-      f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
       t->type = typeVoid;
@@ -465,7 +480,7 @@ void ast_sem (ast t) {
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
         error("parameter passing mode mismatch");
 
-      temp = t->branch2;
+      ast temp = t->branch2;
       params = params->u.eParameter.next;
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
@@ -480,13 +495,14 @@ void ast_sem (ast t) {
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
       printf("leaving procedure %s\n", t->id);
       return;
-    case FUNC_CALL:
+    }
+    case FUNC_CALL: {
       ;
       printf("calling function %s\n", t->id);
       //calling a previously defined function (with return value)
       //branch1-> expr , branch2-> expr_part (more expressions)
       //we check if an entry with the given name exists, if it's a function with non-void return type
-      f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+      SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
       if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
       if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
       //we make the type of ast node the same as the function's. this is needed in order to use the called function in math calculations
@@ -501,12 +517,12 @@ void ast_sem (ast t) {
       }
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
 
-      params = f->u.eFunction.firstArgument;
+      SymbolEntry *params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
         error("parameter passing mode mismatch");
 
-      temp = t->branch2;
+      ast temp = t->branch2;
       params = params->u.eParameter.next;
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
@@ -521,14 +537,15 @@ void ast_sem (ast t) {
       if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
       printf("finished function call\n");
       return;
-    case TID:
+    }
+    case TID: {
       ;
       printf("accesing variable %s\n", t->id);
       char c1 = t->id[0];
       if (!isalpha(c1)) {
         error("variable names have to start with a letter");
       }
-      e = lookupEntry(t->id,LOOKUP_ALL_SCOPES,true);
+      SymbolEntry *e = lookupEntry(t->id,LOOKUP_ALL_SCOPES,true);
       if (e->entryType == ENTRY_PARAMETER) {
         t->type = e->u.eParameter.type;
         t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
@@ -540,7 +557,8 @@ void ast_sem (ast t) {
         t->offset = e->u.eVariable.offset;
       }
       return;
-    case STRING_LIT:
+    }
+    case STRING_LIT: {
       ;
       //string constant
       int len = strlen(t->id);
@@ -549,12 +567,13 @@ void ast_sem (ast t) {
       // strcpy(strconst, t->id);
       t->type = typeArray(len+1, typeChar);
       return;
-    case ARR:
+    }
+    case ARR: {
       //branch1-> l_value, branch2-> expr
       //case is an access to a[i] (element i of array a)
       //we check if 'a' is an array, if it exists, if i is int and if 0 <= i < N , N being the size of the array
       ast_sem(t->branch1);
-      temp = t->branch1;
+      ast temp = t->branch1;
       while((temp->k != TID) && (temp->k != STRING_LIT)) temp = temp->branch1;
       SymbolEntry *e2 = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
       if ((t->branch1->type->kind != TYPE_ARRAY) && (t->branch1->type->kind != TYPE_IARRAY))
@@ -568,11 +587,13 @@ void ast_sem (ast t) {
 
       t->type = t->branch1->type->refType;
       return;
-    case INTCONST:
+    }
+    case INTCONST: {
       printf("number %d\n", t->num);
       t->type = typeInteger;
       return;
-    case CHARCONST:
+    }
+    case CHARCONST: {
       //characters \x01 and \0 represent the true and false keywords. but we don't know if they will be used as bool or char
       //solution: we consider them chars for now unless we notice that they are used in a condition
 
@@ -581,7 +602,8 @@ void ast_sem (ast t) {
       // else t->type = typeChar;
       t->type = typeChar;
       return;
-    case PLUS:
+    }
+    case PLUS: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -593,7 +615,8 @@ void ast_sem (ast t) {
         else error("type mismatch in + operator");
       }
       return;
-    case MINUS:
+    }
+    case MINUS: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -605,7 +628,8 @@ void ast_sem (ast t) {
         else error("type mismatch in - operator");
       }
       return;
-    case TIMES:
+    }
+    case TIMES: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -618,7 +642,8 @@ void ast_sem (ast t) {
       }
       else error("unknown type for * operation");
       return;
-    case DIV:
+    }
+    case DIV: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -630,7 +655,8 @@ void ast_sem (ast t) {
         else error("type mismatch in / operator");
       }
       return;
-    case MOD:
+    }
+    case MOD: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -642,13 +668,15 @@ void ast_sem (ast t) {
         else error("type mismatch in mod operator");
       }
       return;
-    case NOT:
+    }
+    case NOT: {
       ast_sem(t->branch2);
       checkForBool(t->branch2);
       if (!equalType(t->branch2->type, typeBoolean)) error("type mismatch in not operation");
       t->type = typeBoolean;
       return;
-    case AND:
+    }
+    case AND: {
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       ast_sem(t->branch2);
@@ -657,7 +685,8 @@ void ast_sem (ast t) {
         error("type mismatch in and operator");
       t->type = typeBoolean;
       return;
-    case OR:
+    }
+    case OR: {
       ast_sem(t->branch1);
       checkForBool(t->branch1);
       ast_sem(t->branch2);
@@ -666,7 +695,8 @@ void ast_sem (ast t) {
         error("type mismatch in or operator");
       t->type = typeBoolean;
       return;
-    case EQ:
+    }
+    case EQ: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -678,7 +708,8 @@ void ast_sem (ast t) {
         else error("type mismatch in = operator");
       }
       return;
-    case LT:
+    }
+    case LT: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -690,7 +721,8 @@ void ast_sem (ast t) {
         else error("type mismatch in < operator");
       }
       return;
-    case GT:
+    }
+    case GT: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -702,7 +734,8 @@ void ast_sem (ast t) {
         else error("type mismatch in > operator");
       }
       return;
-    case LE:
+    }
+    case LE: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -714,7 +747,8 @@ void ast_sem (ast t) {
         else error("type mismatch in <= operator");
       }
       return;
-    case GE:
+    }
+    case GE: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -726,7 +760,8 @@ void ast_sem (ast t) {
         else error("type mismatch in >= operator");
       }
       return;
-    case NEQ:
+    }
+    case NEQ: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if (equalType(t->branch1->type, typeInteger)) {
@@ -738,25 +773,103 @@ void ast_sem (ast t) {
         else error("type mismatch in <> operator");
       }
       return;
-    case EXPR_NOT:
+    }
+    case EXPR_NOT: {
       //not operation for expressions
       ast_sem(t->branch1);
       if (!equalType(t->branch1->type, typeChar)) error("type mismatch in ! operation");
       t->type = typeChar;
       return;
-    case EXPR_AND:
+    }
+    case EXPR_AND: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if ((!equalType(t->branch1->type, typeChar)) || (!equalType(t->branch2->type, typeChar)))
         error("type mismatch in & operation");
       t->type = typeChar;
       return;
-    case EXPR_OR:
+    }
+    case EXPR_OR: {
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       if ((!equalType(t->branch1->type, typeChar)) || (!equalType(t->branch2->type, typeChar)))
         error("type mismatch in | operation");
       t->type = typeChar;
       return;
+    }
   }
+}
+
+void set_lib_functions() {
+  //initialize the following dana functions in the symbol table
+
+  ast fdecl, fpardef;
+  //decl writeInteger: n as int
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("writeInteger", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+  
+  //decl writeByte: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("writeByte", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl writeChar: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("writeChar", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl writeString: s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  fdecl = ast_header("writeString", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readInteger is int
+  fdecl = ast_header("readInteger", typeInteger, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readByte is byte
+  fdecl = ast_header("readByte", typeChar, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readChar is byte
+  fdecl = ast_header("readChar", typeChar, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readString: n as int, s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  ast fpardef2 = ast_header_part(fpardef, NULL);
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("readString", typeVoid, fpardef, fpardef2);
+  ast_sem(ast_decl(fdecl));
+
+  //decl extend is int: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("extend", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl shrink is byte: n as int
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("shrink", typeChar, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strlen is int: s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  fdecl = ast_header("strlen", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcmp is int: s1 s2 as byte []
+  fpardef = ast_fpar_def(ast_id("s1", ast_id("s2", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcmp", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcpy: trg src as byte []
+  fpardef = ast_fpar_def(ast_id("trg", ast_id("src", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcpy", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcat: trg src as byte []
+  fpardef = ast_fpar_def(ast_id("trg", ast_id("src", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcat", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
 }
