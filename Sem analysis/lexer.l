@@ -240,7 +240,7 @@ void isNextEOF(void) {
 		return;
 	}
 	else {
-		printf("2");
+		//printf("2");
 		BEGIN(FINAL);
 		unput('0');
 		return;

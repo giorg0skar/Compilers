@@ -211,7 +211,7 @@ void ast_sem (ast t) {
   switch (t->k) {
     case FUNC_DEF: {
       printf("entered func def\n");
-      openScope();
+      //openScope();
       ast_sem(t->branch1);
       ast_sem(t->branch2);
       t->num_vars = currentScope->negOffset;
@@ -221,9 +221,10 @@ void ast_sem (ast t) {
     }
     case HEADER: {
       ;
-      printf("entered header\n");
+      printf("entered header %s\n", t->id);
       SymbolEntry *f = newFunction(t->id);
       //f->u.eFunction.resultType = t->type;
+      openScope();
 
       //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
       //ast_sem(t->branch1);
@@ -277,13 +278,57 @@ void ast_sem (ast t) {
     //   }
     //   return;
     case DECL: {
-      printf("entered decl\n");
+      printf("entered decl %s\n", t->branch1->id);
       //DECL is the same as HEADER + we declare the function as forward 
       //branch1 points to header node
-      ast_sem(t->branch1);
+      //parameter declarations have their own scope
       //we assume that there are not any functions with the same name and different headers in the same scope
-      SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, true);
-      forwardFunction(f1);
+
+      //t_header points to the header of the function we wish to declare
+      ast t_header = t->branch1;
+      SymbolEntry *f = newFunction(t_header->id);
+      forwardFunction(f);
+
+      openScope();
+
+      //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
+      //ast_sem(t->branch1);
+      ast temp;
+      Type parType;
+      PassMode mode;
+      if (t_header->branch1 != NULL) {
+        temp = t_header->branch1;    //temp now shows to fpar_def node. branch1 of that node is the beginning of the list of id nodes
+        parType = temp->type;
+        if ((temp->type->kind == TYPE_POINTER) || (temp->type->kind == TYPE_ARRAY) || (temp->type->kind == TYPE_IARRAY)) mode = PASS_BY_REFERENCE;
+        else mode = PASS_BY_VALUE;
+        for(temp=temp->branch1; temp!=NULL; temp=temp->branch1) {
+          //we evaluate the semantics of each id node before we create the new entry. this is to avoid same name conflicts in the parameter definition
+          ast_sem(temp);
+          temp->type = parType;
+          SymbolEntry *par = newParameter(temp->id, parType, mode, f);
+        }
+      }
+
+      //if t_header->branch2 is NULL the following loop exits immediatly so i don't need an if-check
+      temp = t_header->branch2;    //temp now points to the header_part node. branch1 is a fpar_node and branch2 is another header_part node
+      ast headerpart;
+      for(headerpart = t_header->branch2; headerpart!=NULL; headerpart = headerpart->branch2) {
+        //for each headerpart we evaluate a fpar_def node like before
+        temp = headerpart->branch1;   //in every iteration temp points to the fpar_def node of the header_part node
+        parType = temp->type;
+        if ((temp->type->kind == TYPE_POINTER) || (temp->type->kind == TYPE_ARRAY) || (temp->type->kind == TYPE_IARRAY)) mode = PASS_BY_REFERENCE;
+        else mode = PASS_BY_VALUE;
+        ast idnode;
+        for(idnode=temp->branch1; idnode!=NULL; idnode=idnode->branch1) {
+          ast_sem(idnode);
+          idnode->type = parType;
+          SymbolEntry *par = newParameter(idnode->id, parType, mode, f);
+        }
+      }
+
+      endFunctionHeader(f, t_header->type);
+      closeScope();
+
       return;
     }
     case VAR: {
@@ -302,12 +347,11 @@ void ast_sem (ast t) {
       //check if there's already a variable with the same name in current scope
       char c = t->id[0];
       if (!isalpha(c)) {
-        strcat(t->id, "\\0");
+        //strcat(t->id, "\\0");
         error("variable names have to start with a letter. variable is: %s\n", t->id);
       }
       SymbolEntry *e = lookupEntry(t->id,LOOKUP_CURRENT_SCOPE,false);
       if (e!=NULL) {
-        strcat(t->id, "\\0");
         error("there is already a variable with the name: %s\n", t->id);
       }
       return;
@@ -476,8 +520,14 @@ void ast_sem (ast t) {
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
       
       SymbolEntry *params = f->u.eFunction.firstArgument;
-      if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
-      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
+      if (!equalType(t->branch1->type, params->u.eParameter.type)) {
+        //if one of the types is an IArray then it can be matched with an Arraytype of any length
+        if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
+        else if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) ;
+        else error("parameter type mismatch");
+      }
+      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
+          && (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
         error("parameter passing mode mismatch");
 
       ast temp = t->branch2;
@@ -485,8 +535,14 @@ void ast_sem (ast t) {
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
         ast_sem(temp->branch1);
-        if (!equalType(temp->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
-        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR ))
+        if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
+          //if one of the types is an IArray then it can be matched with an Arraytype of any length
+          if (isIArray(temp->branch1->type) && isArray(params->u.eParameter.type)) ;
+          else if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) ;
+          else error("parameter type mismatch");
+        }
+        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
+            && (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
           error("parameter passing mode mismatch");
         params = params->u.eParameter.next;
         temp = temp->branch2;
@@ -518,8 +574,14 @@ void ast_sem (ast t) {
       if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
 
       SymbolEntry *params = f->u.eFunction.firstArgument;
-      if (!equalType(t->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
-      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
+      if (!equalType(t->branch1->type, params->u.eParameter.type)) {
+        //if one of the types is an IArray then it can be matched with an Arraytype of any length
+        if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
+        else if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) ;
+        else error("parameter type mismatch");
+      }
+      if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
+          && (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
         error("parameter passing mode mismatch");
 
       ast temp = t->branch2;
@@ -527,8 +589,14 @@ void ast_sem (ast t) {
       //we check each real parameter to see if they match with the function's typical parameters
       while(temp!=NULL && params!=NULL) {
         ast_sem(temp->branch1);
-        if (!equalType(temp->branch1->type, params->u.eParameter.type)) error("parameter type mismatch");
-        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR ))
+        if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
+          //if one of the types is an IArray then it can be matched with an Arraytype of any length
+          if (isIArray(temp->branch1->type) && isArray(params->u.eParameter.type)) ;
+          else if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) ;
+          else error("parameter type mismatch");
+        }
+        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
+            && (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
           error("parameter passing mode mismatch");
         params = params->u.eParameter.next;
         temp = temp->branch2;
@@ -561,11 +629,13 @@ void ast_sem (ast t) {
     case STRING_LIT: {
       ;
       //string constant
-      int len = strlen(t->id);
+
+      //int len = strlen(t->id);
       // char *strconst;
       // strconst = (char *) malloc(sizeof(char)*(len + 1);
       // strcpy(strconst, t->id);
-      t->type = typeArray(len+1, typeChar);
+      //t->type = typeArray(len+1, typeChar);
+      t->type = typeIArray(typeChar);
       return;
     }
     case ARR: {

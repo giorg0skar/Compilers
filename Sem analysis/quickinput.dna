@@ -29,28 +29,28 @@ def main
             quicksort: arr, low, j-1
             quicksort: arr, j+1, high
 
-   def writeArray: n as int, x as int []
-                var i is int
-                i := 0
-                loop:
-                        if i < n:
-                                if i > 0: skip
-                                # writeInteger: x[i]
-                                i := i+1
-                        else: break
-                # writeString: "\n"
+    def writeArray: n as int, x as int []
+                    var i is int
+                    i := 0
+                    loop:
+                            if i < n:
+                                    if i > 0: writeString: ", "
+                                    writeInteger: x[i]
+                                    i := i+1
+                            else: break
+                    writeString: "\n"
 
 
-   var seed i is int
-   var x      is int [10000]
+    var seed i is int
+    var x      is int [10000]
 
     seed := 65
     i := 0
     loop:
         if i < 100:
-            x[i] := i
+            x[i] := readInteger()
             i := i+1
         else: break
-   writeArray: 100, x
-   quicksort: x,0,99
-   writeArray: 100, x
+    writeArray: 100, x
+    quicksort: x,0,99
+    writeArray: 100, x

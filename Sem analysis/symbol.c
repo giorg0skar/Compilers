@@ -689,3 +689,13 @@ void printMode (PassMode mode)
     if (mode == PASS_BY_REFERENCE)
         printf("var ");
 }
+
+int isPointer(Type type) {
+    return type->kind == TYPE_POINTER;
+}
+int isArray(Type type){
+    return type->kind == TYPE_ARRAY;
+}
+int isIArray(Type type){
+    return type->kind == TYPE_IARRAY;
+}
