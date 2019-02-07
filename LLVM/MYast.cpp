@@ -277,38 +277,6 @@ typedef struct activation_record_tag *activation_record;
 
 activation_record current_AR = NULL;
 
-/*int ast_run (ast t) {
-  if (t == NULL) return NOTHING;
-  switch (t->k) {
-    case SKIP:
-      return NOTHING;
-    case PROGRAM:
-      ast_run(t->branch1); //??
-      return NOTHING;
-    case PRINT:
-      printf("%d\n", ast_run(t->branch1));
-      return NOTHING;
-    case IF:
-      if (ast_run(t->branch1) != 0) ast_run(t->branch2);
-      return NOTHING;
-    case IF_ELSE:
-      if (ast_run(t->branch1) != 0) ast_run(t->branch2);
-      //else if (ast_run(t->branch3->branch1) != 0) ast_run(t->branch3);
-      ast_run(t->branch3);
-      //  NOTE: needs work for else_if
-      else ast_run(t->branch4);     //branch3,4 are extra ast parameters to each block specifically for cases like if...elif...else
-      return NOTHING;
-    case LOOP:
-      for(;;) {
-        ast_run(t->branch2);  // NOTE:unfinished
-      }
-      return NOTHING;
-    case ID: {
-      activation_record ar = current_AR;
-      for (int i = 0; i < t->nesting_diff; ++i) ar = ar->previous;
-      return ar->data[t->offset];
-    }
-}*/
 
 SymbolEntry *lookup(char *c)
 {
@@ -351,17 +319,16 @@ void ast_sem(ast t)
 {
     if (t == NULL)
         return;
-    switch (t->k)
-    {
+    switch (t->k)	{
     case FUNC_DEF:
     {
         printf("entered func def\n");
-        openScope();
+        //openScope();
         ast_sem(t->branch1);
         ast_sem(t->branch2);
         t->num_vars = currentScope->negOffset;
         ast_sem(t->branch3);
-        //?? stuff
+
         closeScope();
         return;
     }
@@ -370,7 +337,7 @@ void ast_sem(ast t)
         ;
         printf("entered header\n");
         SymbolEntry *f = newFunction(t->id);
-        //f->u.eFunction.resultType = t->type;
+        openScope();
 
         //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
         //ast_sem(t->branch1);
@@ -433,13 +400,57 @@ void ast_sem(ast t)
     //   return;
     case DECL:
     {
-        printf("entered decl\n");
-        //DECL is the same as HEADER + we declare the function as forward
+        printf("entered decl %s\n", t->branch1->id);
+        //DECL is the same as HEADER + we declare the function as forward 
         //branch1 points to header node
-        ast_sem(t->branch1);
+        //parameter declarations have their own scope
         //we assume that there are not any functions with the same name and different headers in the same scope
-        SymbolEntry *f1 = lookupEntry(t->branch1->id, LOOKUP_CURRENT_SCOPE, true);
-        forwardFunction(f1);
+
+        //t_header points to the header of the function we wish to declare
+        ast t_header = t->branch1;
+        SymbolEntry *f = newFunction(t_header->id);
+        forwardFunction(f);
+
+        openScope();
+
+        //branch1: fpar_def , branch2: header_part i.e multiple fpar_defs
+        //ast_sem(t->branch1);
+        ast temp;
+        Type_h parType;
+        PassMode mode;
+        if (t_header->branch1 != NULL) {
+            temp = t_header->branch1;    //temp now shows to fpar_def node. branch1 of that node is the beginning of the list of id nodes
+            parType = temp->type;
+            if (isPointer(temp->type) || isArray(temp->type) || isIArray(temp->type) ) mode = PASS_BY_REFERENCE;
+            else mode = PASS_BY_VALUE;
+            for(temp=temp->branch1; temp!=NULL; temp=temp->branch1) {
+                //we evaluate the semantics of each id node before we create the new entry. this is to avoid same name conflicts in the parameter definition
+                ast_sem(temp);
+                temp->type = parType;
+                SymbolEntry *par = newParameter(temp->id, parType, mode, f);
+            }
+        }
+
+        //if t_header->branch2 is NULL the following loop exits immediatly so i don't need an if-check
+        temp = t_header->branch2;    //temp now points to the header_part node. branch1 is a fpar_node and branch2 is another header_part node
+        ast headerpart;
+        for(headerpart = t_header->branch2; headerpart!=NULL; headerpart = headerpart->branch2) {
+            //for each headerpart we evaluate a fpar_def node like before
+            temp = headerpart->branch1;   //in every iteration temp points to the fpar_def node of the header_part node
+            parType = temp->type;
+            if (isPointer(temp->type) || isArray(temp->type) || isIArray(temp->type) ) mode = PASS_BY_REFERENCE;
+            else mode = PASS_BY_VALUE;
+            ast idnode;
+            for(idnode=temp->branch1; idnode!=NULL; idnode=idnode->branch1) {
+                ast_sem(idnode);
+                idnode->type = parType;
+                SymbolEntry *par = newParameter(idnode->id, parType, mode, f);
+            }
+        }
+
+        endFunctionHeader(f, t_header->type);
+        closeScope();
+
         return;
     }
     case VAR:
@@ -652,111 +663,126 @@ void ast_sem(ast t)
         printf("block ends\n");
         return;
     }
-    case PROC_CALL:
-    {
-        ;
-        //calling a previously defined function (with no return value)
-        //branch1-> expr , branch2-> expr_part (more expressions)
-        //we check if an entry with the given name exists, if it's a function with void return type
-        SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
-        if (f->entryType != ENTRY_FUNCTION)
-            error("name given is not a function");
-        if (!equalType(f->u.eFunction.resultType, typeVoid))
-            error("type mismatch, called function is not void");
-        t->type = typeVoid;
-        ast_sem(t->branch1);
-        if (t->branch1 == NULL)
-        {
-            if (f->u.eFunction.firstArgument != NULL)
-                error("function has parameters and none were given");
-            else
-            {
+    case PROC_CALL: {
+		;
+		//calling a previously defined function (with no return value)
+		//branch1-> expr , branch2-> expr_part (more expressions)
+		//we check if an entry with the given name exists, if it's a function with void return type
+		printf("accessing procedure %s\n", t->id);
+		SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+		if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
+		if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
+		t->type = typeVoid;
+		ast_sem(t->branch1);
+		if (t->branch1 == NULL) {
+            if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
+            else {
                 //function has no parameters and we called it using none, so everything's wrapped up real nice
                 return;
             }
-        }
-        if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL)
-            error("function has no parameters, however some were given");
-
-        SymbolEntry *params = f->u.eFunction.firstArgument;
-        if (!equalType(t->branch1->type, params->u.eParameter.type))
-            error("parameter type mismatch");
-        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
-            error("parameter passing mode mismatch");
-
-        ast temp = t->branch2;
-        params = params->u.eParameter.next;
-        //we check each real parameter to see if they match with the function's typical parameters
-        while (temp != NULL && params != NULL)
-        {
-            ast_sem(temp->branch1);
-            if (!equalType(temp->branch1->type, params->u.eParameter.type))
+		}
+		if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
+		
+		SymbolEntry *params = f->u.eFunction.firstArgument;
+		if (!equalType(t->branch1->type, params->u.eParameter.type)) {
+            //if the type of the typical parameter is an IArray then it can be matched with an Arraytype of any length
+            //if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
+            if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
+                //we need to check if the referenced types of the arrays match
+                if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
                 error("parameter type mismatch");
-            if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR))
-                error("parameter passing mode mismatch");
-            params = params->u.eParameter.next;
-            temp = temp->branch2;
-        }
-        if (temp != NULL && params == NULL)
-            error("proc call was given too many parameters");
-        if (temp == NULL && params != NULL)
-            error("proc call was given too few parameters");
-        return;
-    }
-    case FUNC_CALL:
-    {
-        ;
-        printf("calling function %s\n", t->id);
-        //calling a previously defined function (with return value)
-        //branch1-> expr , branch2-> expr_part (more expressions)
-        //we check if an entry with the given name exists, if it's a function with non-void return type
-        SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
-        if (f->entryType != ENTRY_FUNCTION)
-            error("name given is not a function");
-        if (equalType(f->u.eFunction.resultType, typeVoid))
-            error("type mismatch, called function is void");
-        //we make the type of ast node the same as the function's. this is needed in order to use the called function in math calculations
-        t->type = f->u.eFunction.resultType;
-        ast_sem(t->branch1);
-        if (t->branch1 == NULL)
-        {
-            if (f->u.eFunction.firstArgument != NULL)
-                error("function has parameters and none were given");
-            else
-            {
-                //function has no parameters and we called it using none, so everything's wrapped up real nice
-                return;
             }
-        }
-        if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL)
-            error("function has no parameters, however some were given");
+            else error("parameter type mismatch");
+		}
+		if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
+			&& (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
+		error("parameter passing mode mismatch");
 
-        SymbolEntry *params = f->u.eFunction.firstArgument;
-        if (!equalType(t->branch1->type, params->u.eParameter.type))
-            error("parameter type mismatch");
-        if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) && (t->branch1->k != ARR))
-            error("parameter passing mode mismatch");
-
-        ast temp = t->branch2;
-        params = params->u.eParameter.next;
-        //we check each real parameter to see if they match with the function's typical parameters
-        while (temp != NULL && params != NULL)
-        {
-            ast_sem(temp->branch1);
-            if (!equalType(temp->branch1->type, params->u.eParameter.type))
-                error("parameter type mismatch");
-            if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->k != TID) && (temp->k != ARR))
-                error("parameter passing mode mismatch");
-            params = params->u.eParameter.next;
-            temp = temp->branch2;
-        }
-        if (temp != NULL && params == NULL)
-            error("proc call was given too many parameters");
-        if (temp == NULL && params != NULL)
-            error("proc call was given too few parameters");
-        printf("finished function call\n");
-        return;
+		ast temp = t->branch2;
+		params = params->u.eParameter.next;
+		//we check each real parameter to see if they match with the function's typical parameters
+		while(temp != NULL && params != NULL) {
+			ast_sem(temp->branch1);
+			if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
+				//if one of the types is an IArray then it can be matched with an Arraytype of any length
+				if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
+				//we need to check if the referenced types of the arrays match
+				if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+					error("parameter type mismatch");
+				}
+				else error("parameter type mismatch");
+			}
+			if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
+				&& (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
+				error("parameter passing mode mismatch");
+				params = params->u.eParameter.next;
+				temp = temp->branch2;
+		}
+		if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
+		if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+		printf("leaving procedure %s\n", t->id);
+		return;
     }
+	case FUNC_CALL: {
+		;
+		printf("calling function %s\n", t->id);
+		//calling a previously defined function (with return value)
+		//branch1-> expr , branch2-> expr_part (more expressions)
+		//we check if an entry with the given name exists, if it's a function with non-void return type
+		SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
+		if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
+		if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
+		//we make the type of ast node the same as the function's. this is needed in order to use the called function in math calculations
+		t->type = f->u.eFunction.resultType;
+		ast_sem(t->branch1);
+		if (t->branch1 == NULL) {
+			if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
+			else {
+			//function has no parameters and we called it using none, so everything's wrapped up real nice
+			return;
+			}
+		}
+		if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
+
+		SymbolEntry *params = f->u.eFunction.firstArgument;
+		if (!equalType(t->branch1->type, params->u.eParameter.type)) {
+			//if one of the types is an IArray then it can be matched with an Arraytype of any length
+			if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
+			//we need to check if the referenced types of the arrays match
+			if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
+				error("parameter type mismatch");
+			}
+			else error("parameter type mismatch");
+		}
+		if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
+			&& (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
+			error("parameter passing mode mismatch");
+
+		ast temp = t->branch2;
+		params = params->u.eParameter.next;
+		//we check each real parameter to see if they match with the function's typical parameters
+		while(temp!=NULL && params!=NULL) {
+			ast_sem(temp->branch1);
+			if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
+			//if one of the types is an IArray then it can be matched with an Arraytype of any length
+			if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
+				//we need to check if the referenced types of the arrays match
+				if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+				error("parameter type mismatch");
+			}
+			else error("parameter type mismatch");
+			}
+			if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
+				&& (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
+			error("parameter passing mode mismatch");
+			params = params->u.eParameter.next;
+			temp = temp->branch2;
+		}
+		if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
+		if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+		printf("finished function call\n");
+		return;
+	}
     case TID:
     {
         ;
@@ -1118,12 +1144,86 @@ void ast_sem(ast t)
     }
 }
 
+void set_lib_functions() {
+  //initialize the following dana functions in the symbol table
+
+  ast fdecl, fpardef;
+  //decl writeInteger: n as int
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("writeInteger", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+  
+  //decl writeByte: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("writeByte", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl writeChar: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("writeChar", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl writeString: s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  fdecl = ast_header("writeString", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readInteger is int
+  fdecl = ast_header("readInteger", typeInteger, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readByte is byte
+  fdecl = ast_header("readByte", typeChar, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readChar is byte
+  fdecl = ast_header("readChar", typeChar, NULL, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl readString: n as int, s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  ast fpardef2 = ast_header_part(fpardef, NULL);
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("readString", typeVoid, fpardef, fpardef2);
+  ast_sem(ast_decl(fdecl));
+
+  //decl extend is int: b as byte
+  fpardef = ast_fpar_def(ast_id("b", NULL), typeChar);
+  fdecl = ast_header("extend", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl shrink is byte: n as int
+  fpardef = ast_fpar_def(ast_id("n", NULL), typeInteger);
+  fdecl = ast_header("shrink", typeChar, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strlen is int: s as byte []
+  fpardef = ast_fpar_def(ast_id("s", NULL), typeIArray(typeChar));
+  fdecl = ast_header("strlen", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcmp is int: s1 s2 as byte []
+  fpardef = ast_fpar_def(ast_id("s1", ast_id("s2", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcmp", typeInteger, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcpy: trg src as byte []
+  fpardef = ast_fpar_def(ast_id("trg", ast_id("src", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcpy", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+
+  //decl strcat: trg src as byte []
+  fpardef = ast_fpar_def(ast_id("trg", ast_id("src", NULL)), typeIArray(typeChar));
+  fdecl = ast_header("strcat", typeVoid, fpardef, NULL);
+  ast_sem(ast_decl(fdecl));
+}
+
+//---------------------end of sem analysis----------------------------
+
 Value *ast_compile(ast t)
 {
-    if (t == nullptr)
-        return nullptr;
-    switch (t->k)
-    {
+    if (t == nullptr) return nullptr;
+    switch (t->k) {
     case FUNC_DEF:
     {
         //TO-BE-DONE cases

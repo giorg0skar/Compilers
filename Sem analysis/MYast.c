@@ -521,9 +521,13 @@ void ast_sem (ast t) {
       
       SymbolEntry *params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) {
-        //if one of the types is an IArray then it can be matched with an Arraytype of any length
-        if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
-        else if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) ;
+        //if the type of the typical parameter is an IArray then it can be matched with an Arraytype of any length
+        //if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
+        if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
+          //we need to check if the referenced types of the arrays match
+          if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
+            error("parameter type mismatch");
+        }
         else error("parameter type mismatch");
       }
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
@@ -533,12 +537,15 @@ void ast_sem (ast t) {
       ast temp = t->branch2;
       params = params->u.eParameter.next;
       //we check each real parameter to see if they match with the function's typical parameters
-      while(temp!=NULL && params!=NULL) {
+      while(temp != NULL && params != NULL) {
         ast_sem(temp->branch1);
         if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
           //if one of the types is an IArray then it can be matched with an Arraytype of any length
-          if (isIArray(temp->branch1->type) && isArray(params->u.eParameter.type)) ;
-          else if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) ;
+          if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
+            //we need to check if the referenced types of the arrays match
+            if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+              error("parameter type mismatch");
+          }
           else error("parameter type mismatch");
         }
         if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
@@ -576,8 +583,11 @@ void ast_sem (ast t) {
       SymbolEntry *params = f->u.eFunction.firstArgument;
       if (!equalType(t->branch1->type, params->u.eParameter.type)) {
         //if one of the types is an IArray then it can be matched with an Arraytype of any length
-        if (isIArray(t->branch1->type) && isArray(params->u.eParameter.type)) ;
-        else if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) ;
+        if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
+          //we need to check if the referenced types of the arrays match
+          if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
+            error("parameter type mismatch");
+        }
         else error("parameter type mismatch");
       }
       if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
@@ -591,8 +601,11 @@ void ast_sem (ast t) {
         ast_sem(temp->branch1);
         if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
           //if one of the types is an IArray then it can be matched with an Arraytype of any length
-          if (isIArray(temp->branch1->type) && isArray(params->u.eParameter.type)) ;
-          else if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) ;
+          if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
+            //we need to check if the referenced types of the arrays match
+            if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+              error("parameter type mismatch");
+          }
           else error("parameter type mismatch");
         }
         if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
@@ -630,12 +643,12 @@ void ast_sem (ast t) {
       ;
       //string constant
 
-      //int len = strlen(t->id);
+      int len = strlen(t->id);
       // char *strconst;
       // strconst = (char *) malloc(sizeof(char)*(len + 1);
       // strcpy(strconst, t->id);
-      //t->type = typeArray(len+1, typeChar);
-      t->type = typeIArray(typeChar);
+      t->type = typeArray(len+1, typeChar);
+      //t->type = typeIArray(typeChar);
       return;
     }
     case ARR: {
