@@ -163,7 +163,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*------------------------end of layout--------------------------------- */
 
-<<EOF>> 		{ return T_eof; }
+<<EOF>> 		{ printf("eof shouldn't be encountered here\n"); return T_eof; }
 
 "and"			{ isNextEOF(); return T_and; }
 "as"			{ isNextEOF(); return T_as; }
@@ -205,7 +205,7 @@ Char {singlequote}{1}.{singlequote}{1}
 "\""				{ BEGIN(STRING); }
 <STRING>\n			{ yyerror("string cannot span over a single line"); }
 <STRING>[^"\n]*		{ return T_string; }
-<STRING>\"			{ BEGIN(INITIAL); }
+<STRING>\"			{ BEGIN(INITIAL); isNextEOF(); }
 
 
 "<="			{ isNextEOF(); return T_lesseq; }
@@ -243,7 +243,7 @@ Char {singlequote}{1}.{singlequote}{1}
 void isNextEOF(void) {
 	register int c;
 	c=yyinput();
-	if (c != 0) {
+	if (c != -1) {
 		unput(c);
 		return;
 	}

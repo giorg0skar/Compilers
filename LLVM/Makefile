@@ -24,11 +24,11 @@ lexer.o: lexer.cpp parser.hpp
 
 MYast.o: MYast.cpp MYast.hpp
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $<
-
 symbol.o: symbol.c symbol.h
 	gcc -c symbol.c
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $<
 
 
 

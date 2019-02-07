@@ -255,22 +255,45 @@ Type *translateType(Type_h type)
             array_sizes.push_back(ty->size);
             ty = ty->refType;
         }
+        //the size of the last dimension
+        array_sizes.push_back(ty->size);
+
         auto base = translateType(ty->refType);
         for (auto size : array_sizes)
         {
             base = ArrayType::get(base, size);
         }
-        std::cout << base << std::endl;
+        //std::cout << base << std::endl;
+        printType(type);
         return base;
     }
-    if (isIArray(type)) {
+    if (isIArray(type)) 
+    {
         Type_h ty = type->refType;
         std::vector<int> array_sizes;
+        ty = ty->refType;
         while (isArray(ty->refType))
         {
             array_sizes.push_back(ty->size);
             ty = ty->refType;
         }
+        //the size of the last dimension
+        array_sizes.push_back(ty->size);
+
+        auto base = translateType(ty->refType);
+        for (auto size : array_sizes)
+        {
+            base = ArrayType::get(base, size);
+        }
+        //std::cout << base << std::endl;
+        printType(type);
+        return base;
+    }
+    if (isPointer(type))
+    {
+        Type_h ty = type->refType;
+        auto ref = translateType(ty);
+        return PointerType::getUnqual(ref);
     }
 }
 
@@ -1273,14 +1296,93 @@ Value *ast_compile(ast t)
     }
     case IF:
     {
+        Value *v = ast_compile(t->branch1);
+        Value *cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
+        BasicBlock *NextBB;
+        if (t->branch3 != NULL) NextBB = BasicBlock::Create(TheContext, "elif", TheFunction);
+        else NextBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+        Builder.CreateCondBr(cond, InsideBB, NextBB);
+        Builder.SetInsertPoint(InsideBB);
+        //we execute the block inside if
+        ast_compile(t->branch2);
+
+        Builder.CreateBr(NextBB);
+        Builder.SetInsertPoint(NextBB);
+        //we execute all elif nodes
+        //ast_compile(t->branch3);
+
+        for(ast elif_node=t->branch3; elif_node!=NULL; elif_node=elif_node->branch3) {
+            Value *val = ast_compile(elif_node->branch1);
+            Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+            Function *TheFunction = Builder.GetInsertBlock()->getParent();
+            BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction);
+            BasicBlock *NextElifBB;
+            if (elif_node->branch3 != NULL) NextElifBB = BasicBlock::Create(TheContext, "next_elif", TheFunction);
+            else                            NextElifBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+            Builder.CreateCondBr(cond1, InElifBB, NextElifBB);
+            Builder.SetInsertPoint(InElifBB);
+            ast_compile(elif_node->branch2);
+
+            Builder.CreateBr(NextElifBB);
+            Builder.SetInsertPoint(NextElifBB);
+        }
+
         return nullptr;
     }
     case IF_ELSE:
     {
+        Value *v = ast_compile(t->branch1);
+        Value *cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
+        BasicBlock *NextBB;
+        if (t->branch3 != NULL) NextBB = BasicBlock::Create(TheContext, "elif", TheFunction);
+        else NextBB = BasicBlock::Create(TheContext, "else", TheFunction);
+
+        Builder.CreateCondBr(cond, InsideBB, NextBB);
+        Builder.SetInsertPoint(InsideBB);
+        //we execute the block inside 'if'
+        ast_compile(t->branch2);
+
+        Builder.CreateBr(NextBB);
+        Builder.SetInsertPoint(NextBB);
+        //we execute all elif nodes
+        //ast_compile(t->branch3);
+        ast elif_node;
+        for(elif_node=t->branch3; elif_node!=NULL; elif_node=elif_node->branch3) {
+            Value *val = ast_compile(elif_node->branch1);
+            Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+            Function *TheFunction1 = Builder.GetInsertBlock()->getParent();
+            BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction1);
+            BasicBlock *NextElifBB;
+            if (elif_node->branch3 != NULL) NextElifBB = BasicBlock::Create(TheContext, "next_elif", TheFunction1);
+            else                            NextElifBB = BasicBlock::Create(TheContext, "else", TheFunction1);
+            Builder.CreateCondBr(cond1, InElifBB, NextElifBB);
+            Builder.SetInsertPoint(InElifBB);
+            ast_compile(elif_node->branch2);
+
+            Builder.CreateBr(NextElifBB);
+            Builder.SetInsertPoint(NextElifBB);
+        }
+
+        //we execute the 'else' block
+        ast_compile(t->branch4);
+        TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+
+        Builder.CreateBr(AfterBB);
+        Builder.SetInsertPoint(AfterBB);
         return nullptr;
     }
     case LOOP:
     {
+        // Make the new basic block for the loop.
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *PreheaderBB = Builder.GetInsertBlock();
+        BasicBlock *LoopBB = BasicBlock::Create(TheContext, "loop", TheFunction);
+
         return nullptr;
     }
     case BREAK:
@@ -1392,6 +1494,18 @@ Value *ast_compile(ast t)
         Value *l = ast_compile(t->branch1);
         Value *r = ast_compile(t->branch2);
         return Builder.CreateICmpNE(l, r, "nequaltmp");
+    }
+    case EXPR_NOT: 
+    {
+        return nullptr;
+    }
+    case EXPR_AND: 
+    {
+        return nullptr;
+    }
+    case EXPR_OR: 
+    {
+        return nullptr;
     }
     }
     return nullptr;

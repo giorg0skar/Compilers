@@ -154,7 +154,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*------------------------end of layout--------------------------------- */
 
-<<EOF>> 		{ printf("hello world");return T_eof; }
+<<EOF>> 		{ printf("EOF shouldn't be encounteed here\n"); return T_eof; }
 
 "and"			{ isNextEOF(); return T_and; }
 "as"			{ isNextEOF(); return T_as; }
@@ -196,7 +196,7 @@ Char {singlequote}{1}.{singlequote}{1}
 "\""				{ BEGIN(STRING); }
 <STRING>\n			{ yyerror("string cannot span over a single line"); }
 <STRING>[^"\n]*		{ return T_string; }
-<STRING>\"			{ BEGIN(INITIAL); }
+<STRING>\"			{ BEGIN(INITIAL); isNextEOF(); }
 
 
 "<="			{ isNextEOF(); return T_lesseq; }
@@ -225,17 +225,17 @@ Char {singlequote}{1}.{singlequote}{1}
 
  /*\n			{ linenumber++; } */
 
-.			{ printf("%d", yytext[0]); exit(1);yyerror("illegal character "); }
+.			{ yyerror("illegal character "); }
 
 %%
 
 
 //if the next character from input is EOF then go to FINAL state to prepare to close any open blocks 
 void isNextEOF(void) {
-	register int c;
+	int c;
 	c=input();
-	if (c!=0) {
-		//printf("%d\n",c);
+	if (c != -1) {
+		//printf("1\n");
 		unput(c);
 		return;
 	}
