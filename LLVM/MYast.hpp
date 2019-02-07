@@ -58,7 +58,7 @@ ast ast_and_expr(ast l1, ast l2);
 ast ast_or_expr(ast l1, ast l2);
 
 void ast_sem (ast t);
-
+void set_lib_functions();
 int ast_run (ast t);
 
 #endif

@@ -263,10 +263,19 @@ Type *translateType(Type_h type)
         std::cout << base << std::endl;
         return base;
     }
+    if (isIArray(type)) {
+        Type_h ty = type->refType;
+        std::vector<int> array_sizes;
+        while (isArray(ty->refType))
+        {
+            array_sizes.push_back(ty->size);
+            ty = ty->refType;
+        }
+    }
 }
 
-#define NOTHING 0
 
+#define NOTHING 0
 struct activation_record_tag
 {
     struct activation_record_tag *previous;
@@ -1219,6 +1228,7 @@ void set_lib_functions() {
 }
 
 //---------------------end of sem analysis----------------------------
+
 
 Value *ast_compile(ast t)
 {
