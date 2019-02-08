@@ -1378,15 +1378,43 @@ Value *ast_compile(ast t)
     }
     case LOOP:
     {
+        //if the loop has a name we store it
+        char *name;
+        if (!strcmp(t->id, "\0")) {
+            name = (char *) malloc(strlen(t->id)+1);
+        }
+        else name = NULL;
         // Make the new basic block for the loop.
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *PreheaderBB = Builder.GetInsertBlock();
         BasicBlock *LoopBB = BasicBlock::Create(TheContext, "loop", TheFunction);
+        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after", TheFunction);
 
+        // Insert an explicit fall-through from the current block.
+        Builder.CreateBr(LoopBB);
+        // Start insertion in the loop.
+        Builder.SetInsertPoint(LoopBB);
+        //we execute the body of the loop
+        ast_compile(t->branch1);
+        //loop ends only when instructions break, exit are encountered inside
+
+        Builder.CreateBr(LoopBB);
+        //end of loop
+        Builder.SetInsertPoint(AfterBB);
         return nullptr;
     }
     case BREAK:
     {
+        char *name;
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        if (!strcmp(t->id, "\0")) {
+            //if break is given a loop name we break out of that specific loop.
+            name = (char *) malloc(strlen(t->id)+1);
+        }
+        else {
+            //otherwise we break the closest loop
+            name = NULL;
+        }
         return nullptr;
     }
     case CONT:
