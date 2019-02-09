@@ -7,7 +7,6 @@
 # endif
 
 CXXFLAGS=-Wall -g -std=c++11 `llvm-config --cxxflags`
-# LDFLAGS=`llvm-config --ldflags --system-libs --libs all`
 LDFLAGS=`llvm-config --cxxflags --ldflags --libs all --system-libs`
 
 default: dana
@@ -19,13 +18,16 @@ lexer.cpp: lexer.l
 	flex -s -o lexer.cpp lexer.l
 
 parser.o: parser.cpp parser.hpp MYast.hpp
+	$(CXX) $(CXXFLAGS) -c parser.cpp
 
 lexer.o: lexer.cpp parser.hpp
+	$(CXX) $(CXXFLAGS) -c lexer.cpp
 
 MYast.o: MYast.cpp MYast.hpp
+	$(CXX) $(CXXFLAGS) -c MYast.cpp
 
 symbol.o: symbol.c symbol.h
-	gcc -c symbol.c
+	gcc -c -Wall -g symbol.c
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<

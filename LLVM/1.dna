@@ -1,1 +1,2 @@
-def hello begin skip end
+def hello 
+    begin skip end

@@ -137,7 +137,6 @@ fpar_type:
 
 fpar_part:
   data_type '[' ']' { $$ = typeIArray($1); }
-| data_type '[' T_intconst ']'  { $$ = typeArray($3,$1); }
 | fpar_part '[' T_intconst ']'  { $$ = typeArray($3,$1); }
 ;
 
@@ -263,8 +262,10 @@ int main() {
     openScope();
     set_lib_functions();
     ast_sem(t);
+    printf("Semantic analysis complete\n");
     //ast_run(t);
     closeScope();
+    llvm_compile_and_dump(t);
     destroySymbolTable();
     return 0;
 }

@@ -1,0 +1,4 @@
+def main
+
+    #writeString: "hello world"
+    return: 1 + 3

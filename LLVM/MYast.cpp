@@ -26,14 +26,14 @@ extern "C"
 
 using namespace llvm;
 
-static ast ast_make(kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Type_h t)
+static ast ast_make(kind k, const char *c, int n, ast l1, ast l2, ast l3, ast l4, Type_h t)
 {
     //printf("another node in ast\n");
     ast p;
     if ((p = (ast)malloc(sizeof(struct node))) == NULL)
         exit(1);
     p->k = k;
-    p->id = (char *)malloc(sizeof(strlen(c) + 1));
+    p->id = (char *) malloc(sizeof(char)*(strlen(c) + 1));
     //p->id = c;
     strcpy(p->id, c);
     p->num = n;
@@ -55,7 +55,7 @@ ast ast_func_def(ast header, ast local, ast block)
     return ast_make(FUNC_DEF, "\0", 0, header, local, block, NULL, NULL);
 }
 
-ast ast_header(char *l1, Type_h t, ast l2, ast l3)
+ast ast_header(const char *l1, Type_h t, ast l2, ast l3)
 {
     return ast_make(HEADER, l1, 0, l2, l3, NULL, NULL, t);
 }
@@ -84,7 +84,7 @@ ast ast_var(ast idlist, Type_h t)
     return ast_make(VAR, "\0", 0, idlist, NULL, NULL, NULL, t);
 }
 
-ast ast_id(char *s, ast next)
+ast ast_id(const char *s, ast next)
 {
     return ast_make(ID, s, 0, next, NULL, NULL, NULL, NULL);
 }
@@ -125,19 +125,19 @@ ast ast_if_else(ast cond, ast blck, ast ifp, ast elblck)
     return ast_make(IF_ELSE, "\0", 0, cond, blck, ifp, elblck, NULL);
 }
 
-ast ast_loop(char *s, ast l1)
+ast ast_loop(const char *s, ast l1)
 {
     return ast_make(LOOP, s, 0, l1, NULL, NULL, NULL, NULL);
 }
 
-ast ast_break(char *s)
+ast ast_break(const char *s)
 {
     if (s == NULL)
         return ast_make(BREAK, "\0", 0, NULL, NULL, NULL, NULL, NULL);
     return ast_make(BREAK, s, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
-ast ast_continue(char *s)
+ast ast_continue(const char *s)
 {
     if (s == NULL)
         return ast_make(CONT, "\0", 0, NULL, NULL, NULL, NULL, NULL);
@@ -156,12 +156,12 @@ ast ast_block(ast l1)
     return ast_make(BLOCK, "\0", 0, l1, NULL, NULL, NULL, NULL);
 }
 
-ast ast_tid(char *s)
+ast ast_tid(const char *s)
 {
     return ast_make(TID, s, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
-ast ast_string_lit(char *s)
+ast ast_string_lit(const char *s)
 {
     return ast_make(STRING_LIT, s, 0, NULL, NULL, NULL, NULL, NULL);
 }
@@ -183,12 +183,12 @@ ast ast_char_const(char c)
     return ast_make(CHARCONST, name, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
-ast ast_proc_call(char *s, ast l1, ast l2)
+ast ast_proc_call(const char *s, ast l1, ast l2)
 {
     return ast_make(PROC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
 
-ast ast_func_call(char *s, ast l1, ast l2)
+ast ast_func_call(const char *s, ast l1, ast l2)
 {
     return ast_make(FUNC_CALL, s, 0, l1, l2, NULL, NULL, NULL);
 }
@@ -295,19 +295,20 @@ Type *translateType(Type_h type)
         auto ref = translateType(ty);
         return PointerType::getUnqual(ref);
     }
+    return nullptr;
 }
 
 
 #define NOTHING 0
-struct activation_record_tag
-{
-    struct activation_record_tag *previous;
-    int data[0];
-};
+// struct activation_record_tag
+// {
+//     struct activation_record_tag *previous;
+//     int data[0];
+// };
 
-typedef struct activation_record_tag *activation_record;
+// typedef struct activation_record_tag *activation_record;
 
-activation_record current_AR = NULL;
+// activation_record current_AR = NULL;
 
 
 SymbolEntry *lookup(char *c)
@@ -1292,6 +1293,15 @@ Value *ast_compile(ast t)
     }
     case RET:
     {
+        Value *retval = ast_compile(t->branch1);
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *RetBB = BasicBlock::Create(TheContext, "return", TheFunction);
+        if (retval) Builder.CreateRet(retval);
+        else Builder.CreateRetVoid();
+        //configure activation record
+
+        Builder.CreateBr(RetBB);
+        Builder.SetInsertPoint(RetBB);
         return nullptr;
     }
     case IF:
@@ -1429,6 +1439,28 @@ Value *ast_compile(ast t)
     }
     case BLOCK:
     {
+        //UNFINISHED
+        ast_compile(t->branch1);
+        return nullptr;
+    }
+    case PROC_CALL:
+    {
+        return nullptr;
+    }
+    case FUNC_CALL:
+    {
+        return nullptr;
+    }
+    case TID:
+    {
+        return nullptr;
+    }
+    case ARR:
+    {
+        return nullptr;
+    }
+    case STRING_LIT:
+    {
         return nullptr;
     }
     case INTCONST:
@@ -1565,13 +1597,16 @@ void llvm_compile_and_dump(ast t)
     TheWriteString =
         Function::Create(writeString_type, Function::ExternalLinkage,
                          "writeString", TheModule.get());
+                         
     // Define and start the main function.
     Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
     Function *main = cast<Function>(c);
     BasicBlock *BB = BasicBlock::Create(TheContext, "entry", main);
     Builder.SetInsertPoint(BB);
+
     // Emit the program code.
-    ast_compile(t);
+    ast_compile(t->branch3);
+
     Builder.CreateRet(c32(0));
     // Verify and optimize the main function.
     bool bad = verifyModule(*TheModule, &errs());
