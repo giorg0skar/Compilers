@@ -262,9 +262,9 @@ int main() {
     openScope();
     set_lib_functions();
     ast_sem(t);
-    printf("Semantic analysis complete\n");
-    //ast_run(t);
+    printf("Semantic analysis complete\n\n");
     closeScope();
+    
     llvm_compile_and_dump(t);
     destroySymbolTable();
     return 0;

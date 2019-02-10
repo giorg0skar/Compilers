@@ -3,7 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <iostream>
-//#include <string>
+#include <string>
 //#include <cstdio>
 //#include <cstdlib>
 #include "MYast.hpp"
@@ -299,16 +299,17 @@ Type *translateType(Type_h type)
 }
 
 
-#define NOTHING 0
-// struct activation_record_tag
-// {
-//     struct activation_record_tag *previous;
-//     int data[0];
-// };
+struct activation_record_tag
+{
+    struct activation_record_tag *previous;
+    char *funcname;
+    //std::vector<std::string> data;
+    std::map<std::string, Value*> data;
+};
 
-// typedef struct activation_record_tag *activation_record;
+typedef struct activation_record_tag *activation_record;
 
-// activation_record current_AR = NULL;
+activation_record current_AR = NULL;
 
 
 SymbolEntry *lookup(char *c)
@@ -1260,11 +1261,22 @@ Value *ast_compile(ast t)
     switch (t->k) {
     case FUNC_DEF:
     {
-        //TO-BE-DONE cases
+        //execute function header actions -> create a new activation record
+        ast_compile(t->branch1);
+        // activation_record ar = (activation_record) malloc(sizeof(struct activation_record_tag));
+        // ar->funcname = (char *) malloc(sizeof(char)*(strlen(t->branch1->id) + 1));
+        // strcpy(ar->funcname, t->branch1->id);
+
+        //execute local def instructions
+        ast_compile(t->branch2);
+        //execute function block
+        ast_compile(t->branch3);
+
         return nullptr;
     }
     case HEADER:
     {
+        //TO-BE-DONE cases
         return nullptr;
     }
     case DECL:
@@ -1300,7 +1312,7 @@ Value *ast_compile(ast t)
         else Builder.CreateRetVoid();
         //configure activation record
 
-        Builder.CreateBr(RetBB);
+        // Builder.CreateBr(RetBB);
         Builder.SetInsertPoint(RetBB);
         return nullptr;
     }
@@ -1576,11 +1588,11 @@ void llvm_compile_and_dump(ast t)
     // Initialize the module and the optimization passes.
     TheModule = make_unique<Module>("dana program", TheContext);
     TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
-    TheFPM->add(createPromoteMemoryToRegisterPass());
-    TheFPM->add(createInstructionCombiningPass());
-    TheFPM->add(createReassociatePass());
-    TheFPM->add(createGVNPass());
-    TheFPM->add(createCFGSimplificationPass());
+    // TheFPM->add(createPromoteMemoryToRegisterPass());
+    // TheFPM->add(createInstructionCombiningPass());
+    // TheFPM->add(createReassociatePass());
+    // TheFPM->add(createGVNPass());
+    // TheFPM->add(createCFGSimplificationPass());
     TheFPM->doInitialization();
 
     // declare void @writeInteger(i64)

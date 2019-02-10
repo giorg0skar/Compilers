@@ -15,7 +15,7 @@ static ast ast_make (kind k, char *c, int n, ast l1, ast l2, ast l3, ast l4, Typ
   ast p;
   if ((p = malloc(sizeof(struct node))) == NULL) exit(1);
   p->k = k;
-  p->id = (char *) malloc(sizeof(strlen(c + 1)));
+  p->id = (char *) malloc(sizeof(char)*(strlen(c)+1));
   //p->id = c;
   strcpy(p->id, c);
   p->num = n;
