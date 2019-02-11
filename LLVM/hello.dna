@@ -1,4 +1,4 @@
-def main
+def calc
 
     #writeString: "hello world"
     return: 1 + 3

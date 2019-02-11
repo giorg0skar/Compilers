@@ -12,6 +12,7 @@ void yyerror (const char *msg);
 //vector<string> *ids; 
 extern int linenumber;
 ast t;
+Type base_type;
 %}
 
 %union{

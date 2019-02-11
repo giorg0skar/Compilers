@@ -30,7 +30,7 @@ static ast ast_make(kind k, const char *c, int n, ast l1, ast l2, ast l3, ast l4
 {
     //printf("another node in ast\n");
     ast p;
-    if ((p = (ast)malloc(sizeof(struct node))) == NULL)
+    if ((p = (ast) malloc(sizeof(struct node))) == NULL)
         exit(1);
     p->k = k;
     p->id = (char *) malloc(sizeof(char)*(strlen(c) + 1));
@@ -246,6 +246,8 @@ Type *translateType(Type_h type)
         return i32;
     if (equalType(type, typeChar))
         return i8;
+    if (equalType(type, typeVoid))
+        return Type::getVoidTy(TheContext);
     if (isArray(type))
     {
         Type_h ty = type->refType;
@@ -264,7 +266,7 @@ Type *translateType(Type_h type)
             base = ArrayType::get(base, size);
         }
         //std::cout << base << std::endl;
-        printType(type);
+        //printType(type);
         return base;
     }
     if (isIArray(type)) 
@@ -286,7 +288,7 @@ Type *translateType(Type_h type)
             base = ArrayType::get(base, size);
         }
         //std::cout << base << std::endl;
-        printType(type);
+        //printType(type);
         return base;
     }
     if (isPointer(type))
@@ -303,8 +305,8 @@ struct activation_record_tag
 {
     struct activation_record_tag *previous;
     char *funcname;
-    //std::vector<std::string> data;
-    std::map<std::string, Value*> data;
+    std::vector<Type *> data;
+    //std::map<std::string, Value*> data;
 };
 
 typedef struct activation_record_tag *activation_record;
@@ -1261,11 +1263,8 @@ Value *ast_compile(ast t)
     switch (t->k) {
     case FUNC_DEF:
     {
-        //execute function header actions -> create a new activation record
+        //execute function header actions, create a new activation record
         ast_compile(t->branch1);
-        // activation_record ar = (activation_record) malloc(sizeof(struct activation_record_tag));
-        // ar->funcname = (char *) malloc(sizeof(char)*(strlen(t->branch1->id) + 1));
-        // strcpy(ar->funcname, t->branch1->id);
 
         //execute local def instructions
         ast_compile(t->branch2);
@@ -1276,11 +1275,43 @@ Value *ast_compile(ast t)
     }
     case HEADER:
     {
-        //TO-BE-DONE cases
+        //first we create a new activation record
+        activation_record ar = (activation_record) malloc(sizeof(struct activation_record_tag));
+        ar->funcname = (char *) malloc(sizeof(char)*(strlen(t->id) + 1));
+        strcpy(ar->funcname, t->id);
+        ar->previous = current_AR;
+        current_AR = ar;
+
+        Type *ret_type = translateType(t->type);
+        std::vector<Type *> args;
+        //ast_compile(t->branch1);
+        //we store the type of the arguments
+        ast params = t->branch1;
+        Type *par_type = translateType(params->type);
+        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+            ast_compile(temp);
+            args.push_back(par_type);
+        }
+        //we iterate over the list of the other fpar_def nodes.
+        for(ast defs = t->branch2; defs!=NULL; defs=defs->branch2) {
+            params = defs->branch1;
+            par_type = translateType(params->type);
+            for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+                ast_compile(temp);
+                args.push_back(par_type);
+            }
+        }
+
+        FunctionType* ftype = FunctionType::get(ret_type, args, false);
+        Function *new_function = Function::Create(ftype, GlobalValue::PrivateLinkage, t->id, TheModule.get());
+
+        BasicBlock *BB = BasicBlock::Create(TheContext, "entry", new_function);
+        Builder.SetInsertPoint(BB);
         return nullptr;
     }
     case DECL:
     {
+        //TO-BE-DONE cases
         return nullptr;
     }
     case VAR:
