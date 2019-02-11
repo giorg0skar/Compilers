@@ -224,6 +224,8 @@ static GlobalVariable *TheVars;
 static GlobalVariable *TheNL;
 static Function *TheWriteInteger;
 static Function *TheWriteString;
+StructType *current_AR = NULL;
+AllocaInst *currentAlloca;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -301,36 +303,15 @@ Type *translateType(Type_h type)
 }
 
 
-struct activation_record_tag
-{
-    struct activation_record_tag *previous;
-    char *funcname;
-    std::vector<Type *> data;
-    //std::map<std::string, Value*> data;
-};
-
-typedef struct activation_record_tag *activation_record;
-
-activation_record current_AR = NULL;
-
-
-SymbolEntry *lookup(char *c)
-{
-    char *name;
-    name = (char *)malloc(strlen(c) + 1);
-    //name[0] = c;
-    strcpy((char *)name, c);
-    return lookupEntry(name, LOOKUP_ALL_SCOPES, true);
-}
-
-SymbolEntry *insert(char *c, Type_h t)
-{
-    char *name;
-    name = (char *)malloc(strlen(c) + 1);
-    //name[0] = c;
-    strcpy(name, c);
-    return newVariable(name, t);
-}
+// struct activation_record_tag
+// {
+//     struct activation_record_tag *previous;
+//     char *funcname;
+//     std::vector<Type *> data;
+//     //std::map<std::string, Value*> data;
+// };
+// typedef struct activation_record_tag *activation_record;
+// activation_record current_AR = NULL;
 
 //the following variables specify when we need to exit a block and what command caused the exit
 enum
@@ -423,17 +404,6 @@ void ast_sem(ast t)
         endFunctionHeader(f, t->type);
         return;
     }
-    // case FPAR_DEF:
-    //   //this case may not need to get accessed. --> most likely.
-    //   ;
-    //   //here one or more parameters are defined. all parameters have the same type
-    //   ast temp;
-    //   for(temp=t->branch1; temp!=NULL; temp=temp->branch1) {
-    //     ast_sem(temp);
-    //     //we set the parameter type as the given one
-    //     temp->type = t->type;
-    //   }
-    //   return;
     case DECL:
     {
         printf("entered decl %s\n", t->branch1->id);
@@ -1256,6 +1226,99 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
+ast compile_local_defs(ast t, std::vector<Type *> fields)
+{
+    if (t == nullptr) return nullptr;
+    switch (t->k)
+    {
+        case FUNC_DEF: {
+            break;
+        }
+        case DECL:
+            break;
+        case VAR:
+            Type *var_type = translateType(t->type);
+            for(ast temp=t->branch1; temp!=NULL; temp=temp->branch1) {
+                fields.push_back(var_type);
+            }
+            break;
+        default:
+            return t;
+    }
+    return compile_local_defs(t->branch2, fields);
+}
+
+Value *compile_function(ast f)
+{
+    //case of FUNC_DEF
+    if (f == NULL) return nullptr;
+    StructType *old = current_AR;
+    StructType *new_frame = TheModule->getTypeByName(f->branch1->id);
+    if (!new_frame) {
+        new_frame = StructType::create(TheContext, f->branch1->id );
+    }
+    std::vector<Type *> parameters;
+    std::vector<Type *> frame_fields;
+    parameters.push_back(PointerType::get(current_AR, 0));
+    frame_fields.push_back(PointerType::get(current_AR, 0));
+    current_AR = new_frame;
+
+    //iterate through the parameters and push the types in the vector
+    ast params= f->branch1->branch1;
+    Type *par_type = translateType(params->type);
+    for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) {
+        parameters.push_back(par_type);
+        frame_fields.push_back(par_type);
+    }
+    for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
+        params = defs->branch1;
+        par_type = translateType(params->type);
+        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+            parameters.push_back(par_type);
+            frame_fields.push_back(par_type);
+        }
+    }
+    ast local = compile_local_defs(f->branch2, frame_fields);
+
+    if (new_frame->isOpaque()) {
+        //this if is used only in the case of forwarding functions
+        new_frame->setBody(frame_fields, false);
+    }
+    //if the function doesn't already exist we create it
+    FunctionType *ftype = FunctionType::get(translateType(f->branch1->type), parameters, false);
+    Function *NewFunction = TheModule->getFunction(f->branch1->id);
+    if (NewFunction == NULL) {
+        NewFunction = Function::Create(ftype, GlobalValue::ExternalLinkage, f->branch1->id, TheModule.get());
+    }
+    //we change the names of the parameters in the Function to their original ones
+    Function::arg_iterator iter = NewFunction->arg_begin();
+    iter->setName("previous");
+    iter++;
+
+    ast params= f->branch1->branch1;
+    for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
+        iter->setName(temp->id);
+    }
+    for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
+        params = defs->branch1;
+        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
+            iter->setName(temp->id);
+        }
+    }
+
+    //we execute the block of the function
+    ast_compile(f->branch3);
+    BasicBlock *BB = BasicBlock::Create(TheContext, "entry", NewFunction);
+    Builder.SetInsertPoint(BB);
+    currentAlloca = Builder.CreateAlloca(new_frame, 0, "");
+    if (!equalType(f->branch1->type, typeVoid)) {
+        //we allocate memory for the return value
+        AllocaInst *retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
+    }
+    //store Function parameters in the current frame
+
+    return nullptr;
+}
 
 Value *ast_compile(ast t)
 {
@@ -1263,25 +1326,19 @@ Value *ast_compile(ast t)
     switch (t->k) {
     case FUNC_DEF:
     {
+        compile_function(t);
         //execute function header actions, create a new activation record
-        ast_compile(t->branch1);
+        //ast_compile(t->branch1);
 
         //execute local def instructions
-        ast_compile(t->branch2);
-        //execute function block
-        ast_compile(t->branch3);
+        //ast_compile(t->branch2);
 
+        //execute function block
+        //ast_compile(t->branch3);
         return nullptr;
     }
     case HEADER:
     {
-        //first we create a new activation record
-        activation_record ar = (activation_record) malloc(sizeof(struct activation_record_tag));
-        ar->funcname = (char *) malloc(sizeof(char)*(strlen(t->id) + 1));
-        strcpy(ar->funcname, t->id);
-        ar->previous = current_AR;
-        current_AR = ar;
-
         Type *ret_type = translateType(t->type);
         std::vector<Type *> args;
         //ast_compile(t->branch1);
@@ -1488,6 +1545,9 @@ Value *ast_compile(ast t)
     }
     case PROC_CALL:
     {
+        //Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        Function *Callee = TheModule->getFunction(t->id);
+        //Value *first_arg = ast_compile(t->branch1);
         return nullptr;
     }
     case FUNC_CALL:
@@ -1648,7 +1708,7 @@ void llvm_compile_and_dump(ast t)
     Builder.SetInsertPoint(BB);
 
     // Emit the program code.
-    ast_compile(t->branch3);
+    ast_compile(t);
 
     Builder.CreateRet(c32(0));
     // Verify and optimize the main function.

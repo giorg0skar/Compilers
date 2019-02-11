@@ -193,11 +193,11 @@ Char {singlequote}{1}.{singlequote}{1}
 	/*comment handling*/
 "#"					{ BEGIN(SLCOMMENT); }
 <SLCOMMENT>[^\n]*	{ /* nothing */ }
-<SLCOMMENT>\n		{ linenumber++; spacecounter=0; isNextEOF(); BEGIN(INITIAL); }
+<SLCOMMENT>\n		{ linenumber++; spacecounter=0; BEGIN(INITIAL); isNextEOF(); }
 
 "(*"				{ commentcounter = 1; BEGIN(MLCOMMENT); }
 <MLCOMMENT>"(*"		{ commentcounter++; }
-<MLCOMMENT>"*)"		{ if(--commentcounter==0) BEGIN(INITIAL); }
+<MLCOMMENT>"*)"		{ if(--commentcounter==0) {BEGIN(INITIAL); isNextEOF();} }
 <MLCOMMENT>\n		{ linenumber++; spacecounter=0;}
 <MLCOMMENT>"*"		{ /* nothing */ }
 <MLCOMMENT>[^*\n(]*	{ /* nothing */ }
