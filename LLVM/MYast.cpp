@@ -1327,8 +1327,8 @@ Value *compile_function(ast f)
         }
     }
 
-    //we execute the local defs and decls
     //printf("point 4\n");
+    //we execute the local defs and decls
     ast_compile(f->branch2);
     BasicBlock *BB = BasicBlock::Create(TheContext, "entry", NewFunction);
     Builder.SetInsertPoint(BB);
@@ -1344,7 +1344,7 @@ Value *compile_function(ast f)
     Value *element = & (*iter);
     Builder.CreateStore(element, gep, false);
     iter++;
-    for(int i=1; i< parameters.size(); i++, iter++) {
+    for(int i=1; i < parameters.size(); i++, iter++) {
         gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(i)}, "");
         element = & (*iter);
         Builder.CreateStore(element, gep, false);
@@ -1356,7 +1356,7 @@ Value *compile_function(ast f)
     // Builder.CreateBr(RetBlock);
     // Builder.SetInsertPoint(RetBlock);
     if (equalType(f->branch1->type, typeVoid)) {
-        BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
+        BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
         Builder.CreateBr(RetBlock);
         Builder.SetInsertPoint(RetBlock);
         Builder.CreateRetVoid();
@@ -1420,6 +1420,14 @@ Value *ast_compile(ast t)
     }
     case VAR:
     {
+        //check all variables and store them in the function's AR
+        ast vars;
+        Type *var_type = translateType(t->type);
+        for(vars=t->branch1; vars!=NULL; vars=vars->branch1) {
+            int index = vars->offset;
+            Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+            //Builder.CreateStore(var_type, gep, false);
+        }
         return nullptr;
     }
     case ID:
