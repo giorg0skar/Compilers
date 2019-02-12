@@ -35,7 +35,7 @@ symbol.o: symbol.c symbol.h
 
 
 dana: lexer.o parser.o MYast.o symbol.o error.o general.o
-	$(CXX) $(CXXFLAGS) -o dana $^ $(LDFLAGS) -lfl
+	$(CXX) $(CXXFLAGS) -o dana $^ $(LDFLAGS)
 
 clean:
 	$(RM) lexer.cpp parser.cpp parser.hpp parser.output a.* *.o *~

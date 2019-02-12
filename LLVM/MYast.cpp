@@ -25,6 +25,7 @@ extern "C"
 }
 
 using namespace llvm;
+Value* ast_compile(ast t);
 
 static ast ast_make(kind k, const char *c, int n, ast l1, ast l2, ast l3, ast l4, Type_h t)
 {
@@ -226,6 +227,7 @@ static Function *TheWriteInteger;
 static Function *TheWriteString;
 StructType *current_AR = NULL;
 AllocaInst *currentAlloca;
+AllocaInst *retAlloca;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -1226,22 +1228,23 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
-ast compile_local_defs(ast t, std::vector<Type *> fields)
+ast compile_local_defs(ast t, std::vector<Type *> &fields)
 {
     if (t == nullptr) return nullptr;
     switch (t->k)
     {
-        case FUNC_DEF: {
+        case FUNC_DEF:
             break;
-        }
         case DECL:
             break;
-        case VAR:
+        case VAR: 
+        {
             Type *var_type = translateType(t->type);
             for(ast temp=t->branch1; temp!=NULL; temp=temp->branch1) {
                 fields.push_back(var_type);
             }
             break;
+        }
         default:
             return t;
     }
@@ -1254,21 +1257,34 @@ Value *compile_function(ast f)
     if (f == NULL) return nullptr;
     StructType *old = current_AR;
     StructType *new_frame = TheModule->getTypeByName(f->branch1->id);
-    if (!new_frame) {
-        new_frame = StructType::create(TheContext, f->branch1->id );
+    if (new_frame == NULL) {
+        char *structname = (char *) malloc(sizeof(char)*(strlen(f->branch1->id) + 8) );
+        strcpy(structname, "struct_");
+        strcat(structname,f->branch1->id);
+        new_frame = StructType::create(TheContext, structname );
     }
     std::vector<Type *> parameters;
     std::vector<Type *> frame_fields;
-    parameters.push_back(PointerType::get(current_AR, 0));
-    frame_fields.push_back(PointerType::get(current_AR, 0));
+    if (current_AR) {
+        parameters.push_back(PointerType::get(current_AR, 0));
+        frame_fields.push_back(PointerType::get(current_AR, 0));
+    }
+    else {
+        parameters.push_back(NULL);
+        frame_fields.push_back(NULL);
+    }
     current_AR = new_frame;
+    //printf("point 0\n");
 
     //iterate through the parameters and push the types in the vector
     ast params= f->branch1->branch1;
-    Type *par_type = translateType(params->type);
-    for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) {
-        parameters.push_back(par_type);
-        frame_fields.push_back(par_type);
+    Type *par_type;
+    if (params) {
+        par_type = translateType(params->type);
+        for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) {
+            parameters.push_back(par_type);
+            frame_fields.push_back(par_type);
+        }
     }
     for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
         params = defs->branch1;
@@ -1278,45 +1294,76 @@ Value *compile_function(ast f)
             frame_fields.push_back(par_type);
         }
     }
+    //printf("point 1\n");
     ast local = compile_local_defs(f->branch2, frame_fields);
 
     if (new_frame->isOpaque()) {
         //this if is used only in the case of forwarding functions
         new_frame->setBody(frame_fields, false);
     }
+    //printf("point 2\n");
     //if the function doesn't already exist we create it
     FunctionType *ftype = FunctionType::get(translateType(f->branch1->type), parameters, false);
     Function *NewFunction = TheModule->getFunction(f->branch1->id);
     if (NewFunction == NULL) {
         NewFunction = Function::Create(ftype, GlobalValue::ExternalLinkage, f->branch1->id, TheModule.get());
     }
+    //printf("point 3\n");
     //we change the names of the parameters in the Function to their original ones
     Function::arg_iterator iter = NewFunction->arg_begin();
     iter->setName("previous");
     iter++;
 
-    ast params= f->branch1->branch1;
-    for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
-        iter->setName(temp->id);
-    }
-    for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
-        params = defs->branch1;
-        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
+    params= f->branch1->branch1;
+    if (params) {
+        for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
             iter->setName(temp->id);
+        }
+        for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
+            params = defs->branch1;
+            for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1, iter++) {
+                iter->setName(temp->id);
+            }
         }
     }
 
-    //we execute the block of the function
-    ast_compile(f->branch3);
+    //we execute the local defs and decls
+    //printf("point 4\n");
+    ast_compile(f->branch2);
     BasicBlock *BB = BasicBlock::Create(TheContext, "entry", NewFunction);
     Builder.SetInsertPoint(BB);
-    currentAlloca = Builder.CreateAlloca(new_frame, 0, "");
+    currentAlloca = Builder.CreateAlloca(new_frame, 0, "new_frame");
     if (!equalType(f->branch1->type, typeVoid)) {
         //we allocate memory for the return value
         AllocaInst *retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
     }
     //store Function parameters in the current frame
+    iter = NewFunction->arg_begin();
+    //std::vector<Type *> idxlist;
+    Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(0)}, "");
+    Value *element = & (*iter);
+    Builder.CreateStore(element, gep, false);
+    iter++;
+    for(int i=1; i< parameters.size(); i++, iter++) {
+        gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(i)}, "");
+        element = & (*iter);
+        Builder.CreateStore(element, gep, false);
+    }
+    //we start executing the block of the function
+    //ast_compile(local);
+    ast_compile(f->branch3);
+    // BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
+    // Builder.CreateBr(RetBlock);
+    // Builder.SetInsertPoint(RetBlock);
+    if (equalType(f->branch1->type, typeVoid)) {
+        BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
+        Builder.CreateBr(RetBlock);
+        Builder.SetInsertPoint(RetBlock);
+        Builder.CreateRetVoid();
+    }
 
+    //function finished. we return to the previous AR
+    current_AR = old;
     return nullptr;
 }
 
@@ -1339,31 +1386,31 @@ Value *ast_compile(ast t)
     }
     case HEADER:
     {
-        Type *ret_type = translateType(t->type);
-        std::vector<Type *> args;
-        //ast_compile(t->branch1);
-        //we store the type of the arguments
-        ast params = t->branch1;
-        Type *par_type = translateType(params->type);
-        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
-            ast_compile(temp);
-            args.push_back(par_type);
-        }
-        //we iterate over the list of the other fpar_def nodes.
-        for(ast defs = t->branch2; defs!=NULL; defs=defs->branch2) {
-            params = defs->branch1;
-            par_type = translateType(params->type);
-            for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
-                ast_compile(temp);
-                args.push_back(par_type);
-            }
-        }
+        // Type *ret_type = translateType(t->type);
+        // std::vector<Type *> args;
+        // //ast_compile(t->branch1);
+        // //we store the type of the arguments
+        // ast params = t->branch1;
+        // Type *par_type = translateType(params->type);
+        // for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+        //     ast_compile(temp);
+        //     args.push_back(par_type);
+        // }
+        // //we iterate over the list of the other fpar_def nodes.
+        // for(ast defs = t->branch2; defs!=NULL; defs=defs->branch2) {
+        //     params = defs->branch1;
+        //     par_type = translateType(params->type);
+        //     for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+        //         ast_compile(temp);
+        //         args.push_back(par_type);
+        //     }
+        // }
 
-        FunctionType* ftype = FunctionType::get(ret_type, args, false);
-        Function *new_function = Function::Create(ftype, GlobalValue::PrivateLinkage, t->id, TheModule.get());
+        // FunctionType* ftype = FunctionType::get(ret_type, args, false);
+        // Function *new_function = Function::Create(ftype, GlobalValue::PrivateLinkage, t->id, TheModule.get());
 
-        BasicBlock *BB = BasicBlock::Create(TheContext, "entry", new_function);
-        Builder.SetInsertPoint(BB);
+        // BasicBlock *BB = BasicBlock::Create(TheContext, "entry", new_function);
+        // Builder.SetInsertPoint(BB);
         return nullptr;
     }
     case DECL:
@@ -1396,12 +1443,12 @@ Value *ast_compile(ast t)
         Value *retval = ast_compile(t->branch1);
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *RetBB = BasicBlock::Create(TheContext, "return", TheFunction);
+        Builder.CreateBr(RetBB);
+        Builder.SetInsertPoint(RetBB);
         if (retval) Builder.CreateRet(retval);
         else Builder.CreateRetVoid();
         //configure activation record
 
-        // Builder.CreateBr(RetBB);
-        Builder.SetInsertPoint(RetBB);
         return nullptr;
     }
     case IF:
@@ -1702,15 +1749,18 @@ void llvm_compile_and_dump(ast t)
                          "writeString", TheModule.get());
                          
     // Define and start the main function.
-    Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
-    Function *main = cast<Function>(c);
-    BasicBlock *BB = BasicBlock::Create(TheContext, "entry", main);
-    Builder.SetInsertPoint(BB);
+    // Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
+    // Function *main = cast<Function>(c);
+    // BasicBlock *BB = BasicBlock::Create(TheContext, "entry", main);
+    // Builder.SetInsertPoint(BB);
 
+    //we initialize the global current_AR
+    current_AR = StructType::create(TheContext, "dummy");
     // Emit the program code.
     ast_compile(t);
 
-    Builder.CreateRet(c32(0));
+    Function *main = TheModule->getFunction("main");
+    //Builder.CreateRet(c32(0));
     // Verify and optimize the main function.
     bool bad = verifyModule(*TheModule, &errs());
     if (bad)

@@ -243,7 +243,7 @@ Char {singlequote}{1}.{singlequote}{1}
 void isNextEOF(void) {
 	register int c;
 	c=yyinput();
-	if (c != -1) {
+	if (c != 0) {
 		unput(c);
 		return;
 	}
