@@ -305,16 +305,6 @@ Type *translateType(Type_h type)
 }
 
 
-// struct activation_record_tag
-// {
-//     struct activation_record_tag *previous;
-//     char *funcname;
-//     std::vector<Type *> data;
-//     //std::map<std::string, Value*> data;
-// };
-// typedef struct activation_record_tag *activation_record;
-// activation_record current_AR = NULL;
-
 //the following variables specify when we need to exit a block and what command caused the exit
 enum
 {
@@ -651,7 +641,7 @@ void ast_sem(ast t)
             SymbolEntry *l = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
             if (l->entryType != ENTRY_CONSTANT)
                 error("break given string that's not a loop name");
-            if (l->nestingLevel > currentScope->nestingLevel)
+            if (currentScope->nestingLevel < l->nestingLevel)
                 error("continue isn't located inside the %s loop", t->id);
         }
         return;
@@ -676,7 +666,7 @@ void ast_sem(ast t)
 		//calling a previously defined function (with no return value)
 		//branch1-> expr , branch2-> expr_part (more expressions)
 		//we check if an entry with the given name exists, if it's a function with void return type
-		printf("accessing procedure %s\n", t->id);
+		printf("calling procedure %s\n", t->id);
 		SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
 		if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
 		if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
@@ -786,8 +776,8 @@ void ast_sem(ast t)
 			params = params->u.eParameter.next;
 			temp = temp->branch2;
 		}
-		if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
-		if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+		if (temp!=NULL && params==NULL) error("func call was given too many parameters");
+		if (temp==NULL && params!=NULL) error("func call was given too few parameters");
 		printf("finished function call\n");
 		return;
 	}
@@ -806,12 +796,14 @@ void ast_sem(ast t)
             t->type = e->u.eParameter.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eParameter.offset;
+            printf("parameter %s offset is: %d\n", t->id, t->offset);
         }
         else if (e->entryType == ENTRY_VARIABLE)
         {
             t->type = e->u.eVariable.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eVariable.offset;
+            printf("variable %s offset is: %d\n", t->id, t->offset);
         }
         return;
     }
@@ -836,7 +828,7 @@ void ast_sem(ast t)
         while ((temp->k != TID) && (temp->k != STRING_LIT))
             temp = temp->branch1;
         SymbolEntry *e2 = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
-        if (isArray(t->branch1->type) && isIArray(t->branch1->type))
+        if (!isArray(t->branch1->type) && !isIArray(t->branch1->type))
             error("l_value is not an array");
         ast_sem(t->branch2);
         if (!equalType(t->branch2->type, typeInteger))
@@ -1355,6 +1347,8 @@ Value *compile_function(ast f)
     // BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
     // Builder.CreateBr(RetBlock);
     // Builder.SetInsertPoint(RetBlock);
+
+    //if we encountered no return instruction, the function has void return type
     if (equalType(f->branch1->type, typeVoid)) {
         BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
         Builder.CreateBr(RetBlock);
@@ -1421,13 +1415,13 @@ Value *ast_compile(ast t)
     case VAR:
     {
         //check all variables and store them in the function's AR
-        ast vars;
-        Type *var_type = translateType(t->type);
-        for(vars=t->branch1; vars!=NULL; vars=vars->branch1) {
-            int index = vars->offset;
-            Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
-            //Builder.CreateStore(var_type, gep, false);
-        }
+        // ast vars;
+        // Type *var_type = translateType(t->type);
+        // for(vars=t->branch1; vars!=NULL; vars=vars->branch1) {
+        //     int index = vars->offset;
+        //     Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+        //     Builder.CreateStore(var_type, gep, false);
+        // }
         return nullptr;
     }
     case ID:
@@ -1440,6 +1434,13 @@ Value *ast_compile(ast t)
     }
     case ASSIGN:
     {
+        Value *val = ast_compile(t->branch2);
+        int index = t->branch1->offset;
+        // if (t->branch1->k) {
+        //     index = t->branch1->offset;
+        // }
+        Value *gep =  Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+        Builder.CreateLoad(gep, t->branch1->id);
         return nullptr;
     }
     case EXIT:

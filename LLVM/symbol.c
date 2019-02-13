@@ -241,7 +241,7 @@ SymbolEntry * newVariable (const char * name, Type_h type)
         type->refCount++;
         // For minibasic, let's abuse the negative offset
         // and just count how many variables we have in the scope.
-        e->u.eVariable.offset = currentScope->negOffset;
+        e->u.eVariable.offset = 1 + currentScope->negOffset;
         currentScope->negOffset++;
         /* This is not necessary...
         currentScope->negOffset -= sizeOfType(type);
@@ -389,6 +389,8 @@ SymbolEntry * newParameter (const char * name, Type_h type,
                 type->refCount++;
                 e->u.eParameter.mode = mode;
                 e->u.eParameter.next = NULL;
+                e->u.eParameter.offset = 1 + currentScope->negOffset;
+                currentScope->negOffset++;
             }
             if (f->u.eFunction.lastArgument == NULL)
                 f->u.eFunction.firstArgument = f->u.eFunction.lastArgument = e;
@@ -425,7 +427,7 @@ SymbolEntry * newParameter (const char * name, Type_h type,
     return NULL;
 }
 
-static unsigned int fixOffset (SymbolEntry * args)
+/*static unsigned int fixOffset (SymbolEntry * args)
 {
     if (args == NULL)
         return 0;
@@ -438,6 +440,18 @@ static unsigned int fixOffset (SymbolEntry * args)
         else
             return rest + sizeOfType(args->u.eParameter.type);
     }
+}*/
+
+//assign offset correctly for function parameters. we take advantage of negOffset variable
+void fixOffset (SymbolEntry *args)
+{
+    if (args == NULL) return;
+    else {
+        args->u.eParameter.offset = 1 + currentScope->negOffset;
+        currentScope->negOffset++;
+        fixOffset(args->u.eParameter.next);
+    }
+    return;
 }
 
 void forwardFunction (SymbolEntry * f)
@@ -456,7 +470,7 @@ void endFunctionHeader (SymbolEntry * f, Type_h type)
             internal("Cannot end parameters in an already defined function");
             break;
         case PARDEF_DEFINE:
-            fixOffset(f->u.eFunction.firstArgument);
+            //fixOffset(f->u.eFunction.firstArgument);
             f->u.eFunction.resultType = type;
             type->refCount++;
             break;

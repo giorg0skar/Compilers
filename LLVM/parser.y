@@ -203,8 +203,8 @@ func_call:
 ;
 
 l_value:
-  T_id    { $$ = ast_tid($1); }
-| T_string  { $$ = ast_string_lit($1); }
+  T_id                  { $$ = ast_tid($1); }
+| T_string              { $$ = ast_string_lit($1); }
 | l_value '[' expr ']'  { $$ = ast_arr($1,$3); }
 ;
 

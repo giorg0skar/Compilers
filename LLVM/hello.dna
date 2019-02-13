@@ -1,7 +1,9 @@
 def main is int
 
     def g is int: a b as int
-        return: 5
+        return: a + b
+    var x is int
 
     #writeString: "hello world"
+    x := g ( 3, 5 )
     return: 1 + 3
