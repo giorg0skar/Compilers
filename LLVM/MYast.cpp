@@ -1414,6 +1414,7 @@ Value *ast_compile(ast t)
     }
     case VAR:
     {
+        //CASE PROBABLY ALREADY COVERED
         //check all variables and store them in the function's AR
         // ast vars;
         // Type *var_type = translateType(t->type);
@@ -1440,7 +1441,8 @@ Value *ast_compile(ast t)
         //     index = t->branch1->offset;
         // }
         Value *gep =  Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
-        Builder.CreateLoad(gep, t->branch1->id);
+        //Builder.CreateLoad(gep, t->branch1->id);
+        Builder.CreateStore(val, gep, false);
         return nullptr;
     }
     case EXIT:
@@ -1603,16 +1605,38 @@ Value *ast_compile(ast t)
     {
         //Function *TheFunction = Builder.GetInsertBlock()->getParent();
         Function *Callee = TheModule->getFunction(t->id);
-        //Value *first_arg = ast_compile(t->branch1);
+        std::vector<Value *> args;
+        args.push_back(ast_compile(t->branch1));
+        for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+            Value *v = ast_compile(t->branch1);
+            args.push_back(v);
+        }
+        Builder.CreateCall(Callee, args, t->id);
         return nullptr;
     }
     case FUNC_CALL:
     {
-        return nullptr;
+        Function *Callee = TheModule->getFunction(t->id);
+        std::vector<Value *> args;
+        args.push_back(ast_compile(t->branch1));
+        for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+            Value *v = ast_compile(t->branch1);
+            args.push_back(v);
+        }
+        return Builder.CreateCall(Callee, args, t->id);
     }
     case TID:
     {
-        return nullptr;
+        //we search the AR where the variable/param was defined and load it's value
+        int frame_diff = t->nesting_diff;
+        Value *record, *gep;
+        for(int i=0; i < frame_diff; i++) {
+            gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(0)}, "");
+            record = Builder.CreateLoad(gep, "previous");
+        }
+        int index = t->offset;
+        gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+        return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
     {
