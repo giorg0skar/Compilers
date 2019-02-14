@@ -1,9 +1,11 @@
 def main is int
 
     def g is int: a b as int
+        var xx is byte
         return: a + b
     var x is int
 
     #writeString: "hello world"
-    x := g ( 3, 5 )
-    return: x
+    #x := g ( 3, 5 )
+    #return: g(3, x)
+    return: g(3,4)

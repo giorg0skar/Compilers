@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <iostream>
 #include <string>
+#include <vector>
 //#include <cstdio>
 //#include <cstdlib>
 #include "MYast.hpp"
@@ -226,7 +227,7 @@ static GlobalVariable *TheNL;
 static Function *TheWriteInteger;
 static Function *TheWriteString;
 StructType *current_AR = NULL;
-AllocaInst *currentAlloca;
+AllocaInst *currentAlloca = NULL;
 AllocaInst *retAlloca;
 
 // Useful LLVM types.
@@ -796,6 +797,7 @@ void ast_sem(ast t)
             t->type = e->u.eParameter.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eParameter.offset;
+            printf("parameter %s nesting diff is %d\n", t->id, t->nesting_diff);
             printf("parameter %s offset is: %d\n", t->id, t->offset);
         }
         else if (e->entryType == ENTRY_VARIABLE)
@@ -803,6 +805,7 @@ void ast_sem(ast t)
             t->type = e->u.eVariable.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eVariable.offset;
+            printf("variable %s nesting diff is %d\n", t->id, t->nesting_diff);
             printf("variable %s offset is: %d\n", t->id, t->offset);
         }
         return;
@@ -1220,7 +1223,7 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
-ast compile_local_defs(ast t, std::vector<Type *> &fields)
+ast store_local_defs(ast t, std::vector<Type *> &fields)
 {
     if (t == nullptr) return nullptr;
     switch (t->k)
@@ -1240,7 +1243,7 @@ ast compile_local_defs(ast t, std::vector<Type *> &fields)
         default:
             return t;
     }
-    return compile_local_defs(t->branch2, fields);
+    return store_local_defs(t->branch2, fields);
 }
 
 Value *compile_function(ast f)
@@ -1287,7 +1290,17 @@ Value *compile_function(ast f)
         }
     }
     //printf("point 1\n");
-    ast local = compile_local_defs(f->branch2, frame_fields);
+    //ast local = store_local_defs(f->branch2, frame_fields);
+    for(ast vars=f->branch2; vars!=NULL; vars=vars->branch2) {
+        if (vars->branch1->k == VAR) {
+            //we found a var def
+            ast var_def = vars->branch1;
+            Type *var_type = translateType(var_def->type);
+            for(ast temp=var_def->branch1; temp!=NULL; temp=temp->branch1) {
+                frame_fields.push_back(var_type);
+            }
+        }
+    }
 
     if (new_frame->isOpaque()) {
         //this if is used only in the case of forwarding functions
@@ -1324,10 +1337,12 @@ Value *compile_function(ast f)
     ast_compile(f->branch2);
     BasicBlock *BB = BasicBlock::Create(TheContext, "entry", NewFunction);
     Builder.SetInsertPoint(BB);
+
+    AllocaInst *oldAlloca = currentAlloca;
     currentAlloca = Builder.CreateAlloca(new_frame, 0, "new_frame");
     if (!equalType(f->branch1->type, typeVoid)) {
         //we allocate memory for the return value
-        AllocaInst *retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
+        retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
     }
     //store Function parameters in the current frame
     iter = NewFunction->arg_begin();
@@ -1342,7 +1357,6 @@ Value *compile_function(ast f)
         Builder.CreateStore(element, gep, false);
     }
     //we start executing the block of the function
-    //ast_compile(local);
     ast_compile(f->branch3);
     // BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
     // Builder.CreateBr(RetBlock);
@@ -1358,6 +1372,7 @@ Value *compile_function(ast f)
 
     //function finished. we return to the previous AR
     current_AR = old;
+    currentAlloca = oldAlloca;
     return nullptr;
 }
 
@@ -1380,6 +1395,7 @@ Value *ast_compile(ast t)
     }
     case HEADER:
     {
+        //CASE PROBABLY ALREADY COVERED
         // Type *ret_type = translateType(t->type);
         // std::vector<Type *> args;
         // //ast_compile(t->branch1);
@@ -1437,10 +1453,19 @@ Value *ast_compile(ast t)
     {
         Value *val = ast_compile(t->branch2);
         int index = t->branch1->offset;
+        printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
+        std::cout << currentAlloca << std::endl;
         // if (t->branch1->k) {
         //     index = t->branch1->offset;
         // }
-        Value *gep =  Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+        int frame_diff = t->branch1->nesting_diff;
+        Value *record = currentAlloca;
+        Value *gep;
+        for(int i=0; i < frame_diff; i++) {
+            gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+            record = Builder.CreateLoad(gep, "previous");
+        } 
+        gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(index)}, "");
         //Builder.CreateLoad(gep, t->branch1->id);
         Builder.CreateStore(val, gep, false);
         return nullptr;
@@ -1606,10 +1631,15 @@ Value *ast_compile(ast t)
         //Function *TheFunction = Builder.GetInsertBlock()->getParent();
         Function *Callee = TheModule->getFunction(t->id);
         std::vector<Value *> args;
-        args.push_back(ast_compile(t->branch1));
-        for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-            Value *v = ast_compile(t->branch1);
-            args.push_back(v);
+
+        //AllocaInst *previousAlloca = currentAlloca;
+        args.push_back(currentAlloca);
+        if (t->branch1) {
+            args.push_back(ast_compile(t->branch1));
+            for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+                Value *v = ast_compile(temp->branch1);
+                args.push_back(v);
+            }
         }
         Builder.CreateCall(Callee, args, t->id);
         return nullptr;
@@ -1618,24 +1648,33 @@ Value *ast_compile(ast t)
     {
         Function *Callee = TheModule->getFunction(t->id);
         std::vector<Value *> args;
-        args.push_back(ast_compile(t->branch1));
-        for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-            Value *v = ast_compile(t->branch1);
-            args.push_back(v);
+        printf("calling function %s\n", t->id);
+
+        args.push_back(currentAlloca);
+        //if func call has arguments we push them in the args vector
+        if (t->branch1) {
+            args.push_back(ast_compile(t->branch1));
+            for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+                Value *v = ast_compile(temp->branch1);
+                args.push_back(v);
+            }
         }
         return Builder.CreateCall(Callee, args, t->id);
     }
     case TID:
     {
         //we search the AR where the variable/param was defined and load it's value
+        //printf("accessing variable %s\n", t->id);
         int frame_diff = t->nesting_diff;
-        Value *record, *gep;
+        Value *record = currentAlloca;
+        Value *gep;
         for(int i=0; i < frame_diff; i++) {
-            gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(0)}, "");
+            gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
             record = Builder.CreateLoad(gep, "previous");
         }
         int index = t->offset;
-        gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
+        gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(index)}, "");
+        // printf("finished variable %s\n", t->id);
         return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
@@ -1789,6 +1828,7 @@ void llvm_compile_and_dump(ast t)
 
     //we initialize the global current_AR
     current_AR = StructType::create(TheContext, "dummy");
+    //currentAlloca = Builder.CreateAlloca(current_AR, 0, "");
     // Emit the program code.
     ast_compile(t);
 
