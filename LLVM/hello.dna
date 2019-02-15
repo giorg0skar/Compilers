@@ -3,10 +3,16 @@ def main is int
     def g is int: a b as int
         var xx is byte
         return: a + b
-    var x is int
+    var x y is int
 
     #writeString: "hello world"
-    x := g ( 3, 5 )
-    return: 1
-    return: 1
-    return: 3
+    x := 5
+    y := 1
+    loop fact: 
+        if x = 1: return: y
+        else: 
+            y := y*x
+            x := x-1 
+    
+    return: 0
+

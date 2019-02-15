@@ -167,13 +167,13 @@ stmt:
 | "exit"            { $$ = ast_exit(); }
 | "return" ':' expr { $$ = ast_return($3); }
 | "if" cond ':' block if_part "else" ':' block  { $$ = ast_if_else($2,$4,$5,$8); }
-| "if" cond ':' block if_part  { $$ = ast_if($2,$4,$5); }
+| "if" cond ':' block if_part                   { $$ = ast_if($2,$4,$5); }
 | "loop" ':' block        { $$ = ast_loop("\0", $3); }
 | "loop" T_id ':' block   { $$ = ast_loop($2,$4); }
-| "break"           { $$ = ast_break(NULL); }
-| "break" ':' T_id  { $$ = ast_break($3); }
-| "continue"          { $$ = ast_continue(NULL); }
-| "continue" ':' T_id { $$ = ast_continue($3); }
+| "break"                 { $$ = ast_break(NULL); }
+| "break" ':' T_id        { $$ = ast_break($3); }
+| "continue"              { $$ = ast_continue(NULL); }
+| "continue" ':' T_id     { $$ = ast_continue($3); }
 | stmt stmt   { $$ = ast_seq($1,$2); }
 ;
 

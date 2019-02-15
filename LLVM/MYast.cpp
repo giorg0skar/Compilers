@@ -16,6 +16,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #if defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR >= 4
 #include <llvm/Transforms/Scalar/GVN.h>
 #endif
@@ -582,9 +583,8 @@ void ast_sem(ast t)
         checkForBool(t->branch1);
         if (!equalType(t->branch1->type, typeBoolean))
             error("if expects a boolean condition");
-        openScope();
         ast_sem(t->branch2);
-        closeScope();
+
         ast_sem(t->branch3);
         return;
     }
@@ -595,13 +595,13 @@ void ast_sem(ast t)
         checkForBool(t->branch1);
         if (!equalType(t->branch1->type, typeBoolean))
             error("if expects a boolean condition");
-        openScope();
+        //openScope();
         ast_sem(t->branch2);
-        closeScope();
+        //closeScope();
         ast_sem(t->branch3);
-        openScope();
+        //openScope();
         ast_sem(t->branch4);
-        closeScope();
+        //closeScope();
         return;
     }
     case LOOP:
@@ -612,10 +612,8 @@ void ast_sem(ast t)
             Type_h ctype = typeArray(strlen(t->id + 1), typeChar);
             SymbolEntry *e = newConstant(t->id, ctype, t->id);
         }
-        //we open a new scope inside a loop
-        openScope();
+
         ast_sem(t->branch1);
-        closeScope();
         return;
     }
     case BREAK:
@@ -1230,28 +1228,6 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
-ast store_local_defs(ast t, std::vector<Type *> &fields)
-{
-    if (t == nullptr) return nullptr;
-    switch (t->k)
-    {
-        case FUNC_DEF:
-            break;
-        case DECL:
-            break;
-        case VAR: 
-        {
-            Type *var_type = translateType(t->type);
-            for(ast temp=t->branch1; temp!=NULL; temp=temp->branch1) {
-                fields.push_back(var_type);
-            }
-            break;
-        }
-        default:
-            return t;
-    }
-    return store_local_defs(t->branch2, fields);
-}
 
 Value *compile_function(ast f)
 {
@@ -1373,6 +1349,13 @@ Value *compile_function(ast f)
         Builder.SetInsertPoint(RetBlock);
         Builder.CreateRetVoid();
     }
+    // else {
+    //     BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
+    //     Builder.CreateBr(RetBlock);
+    //     Builder.SetInsertPoint(RetBlock);
+    //     Value *returnValue = Builder.CreateLoad(retAlloca, "");
+    //     Builder.CreateRet(returnValue);
+    // }
 
     //function finished. we return to the previous AR
     current_AR = old;
@@ -1443,7 +1426,7 @@ Value *ast_compile(ast t)
         //     Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
         //     Builder.CreateStore(var_type, gep, false);
         // }
-        printf("first var is %s\n",t->branch1->id);
+        //printf("first var is %s\n",t->branch1->id);
         return nullptr;
     }
     case ID:
@@ -1458,8 +1441,7 @@ Value *ast_compile(ast t)
     {
         Value *val = ast_compile(t->branch2);
         int indx = t->branch1->offset;
-        printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
-        std::cout << currentAlloca << std::endl;
+        //printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
         // if (t->branch1->k) {
         //     index = t->branch1->offset;
         // }
@@ -1469,10 +1451,11 @@ Value *ast_compile(ast t)
         for(int i=0; i < frame_diff; i++) {
             gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
             record = Builder.CreateLoad(gep, "previous");
-        } 
+        }
+
         gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(indx)}, "");
         Builder.CreateStore(val, gep, false);
-        printf("finished assign\n");
+        //printf("finished assign\n");
         return nullptr;
     }
     case EXIT:
@@ -1484,18 +1467,30 @@ Value *ast_compile(ast t)
         Value *retval = ast_compile(t->branch1);
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *RetBB = BasicBlock::Create(TheContext, "return", TheFunction);
+        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after_return", TheFunction);
+
         Builder.CreateBr(RetBB);
         Builder.SetInsertPoint(RetBB);
         if (retval) Builder.CreateRet(retval);
         else Builder.CreateRetVoid();
-        //configure activation record
-
+        
+        Builder.SetInsertPoint(AfterBB);
+        //Builder.CreateStore(retval, retAlloca, false);
         return nullptr;
     }
     case IF:
     {
+        Value *cond;
         Value *v = ast_compile(t->branch1);
-        Value *cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+
+        //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
+        if (equalType(t->branch1->type, typeBoolean)) {
+            cond = v;
+        }
+        else {
+            cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        }
+
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
         BasicBlock *NextBB;
@@ -1531,8 +1526,17 @@ Value *ast_compile(ast t)
     }
     case IF_ELSE:
     {
+        Value *cond;
         Value *v = ast_compile(t->branch1);
-        Value *cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+
+        //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
+        if (equalType(t->branch1->type, typeBoolean)) {
+            cond = v;
+        }
+        else {
+            cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        }
+        
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
         BasicBlock *NextBB;
@@ -1544,6 +1548,8 @@ Value *ast_compile(ast t)
         //we execute the block inside 'if'
         ast_compile(t->branch2);
 
+        //BasicBlock *BB = Builder.GetInsertBlock();
+        
         Builder.CreateBr(NextBB);
         Builder.SetInsertPoint(NextBB);
         //we execute all elif nodes
@@ -1586,7 +1592,7 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *PreheaderBB = Builder.GetInsertBlock();
         BasicBlock *LoopBB = BasicBlock::Create(TheContext, "loop", TheFunction);
-        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after", TheFunction);
+        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after_loop", TheFunction);
 
         // Insert an explicit fall-through from the current block.
         Builder.CreateBr(LoopBB);
@@ -1605,6 +1611,8 @@ Value *ast_compile(ast t)
     {
         char *name;
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *BreakBlock = BasicBlock::Create(TheContext, "break", TheFunction);
+
         if (!strcmp(t->id, "\0")) {
             //if break is given a loop name we break out of that specific loop.
             name = (char *) malloc(strlen(t->id)+1);
@@ -1612,6 +1620,8 @@ Value *ast_compile(ast t)
         else {
             //otherwise we break the closest loop
             name = NULL;
+            Builder.CreateBr(BreakBlock);
+            Builder.SetInsertPoint(BreakBlock);
         }
         return nullptr;
     }
@@ -1741,20 +1751,16 @@ Value *ast_compile(ast t)
     }
     case NOT:
     {
-        Value *l = ast_compile(t->branch1);
-        return Builder.CreateNot(l, "nottmp");
+        //Boolean not, and, or cases (!, &&, ||)
+        return nullptr;
     }
     case AND:
     {
-        Value *l = ast_compile(t->branch1);
-        Value *r = ast_compile(t->branch2);
-        return Builder.CreateAnd(l, r, "andtmp");
+        return nullptr;
     }
     case OR:
     {
-        Value *l = ast_compile(t->branch1);
-        Value *r = ast_compile(t->branch2);
-        return Builder.CreateOr(l, r, "ortmp");
+        return nullptr;
     }
     case EQ:
     {
@@ -1794,15 +1800,20 @@ Value *ast_compile(ast t)
     }
     case EXPR_NOT: 
     {
-        return nullptr;
+        Value *l = ast_compile(t->branch1);
+        return Builder.CreateNot(l, "nottmp");
     }
     case EXPR_AND: 
     {
-        return nullptr;
+        Value *l = ast_compile(t->branch1);
+        Value *r = ast_compile(t->branch2);
+        return Builder.CreateAnd(l, r, "andtmp");
     }
     case EXPR_OR: 
     {
-        return nullptr;
+        Value *l = ast_compile(t->branch1);
+        Value *r = ast_compile(t->branch2);
+        return Builder.CreateOr(l, r, "ortmp");
     }
     }
     return nullptr;
@@ -1813,11 +1824,11 @@ void llvm_compile_and_dump(ast t)
     // Initialize the module and the optimization passes.
     TheModule = make_unique<Module>("dana program", TheContext);
     TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
-    // TheFPM->add(createPromoteMemoryToRegisterPass());
-    // TheFPM->add(createInstructionCombiningPass());
-    // TheFPM->add(createReassociatePass());
-    // TheFPM->add(createGVNPass());
-    // TheFPM->add(createCFGSimplificationPass());
+    TheFPM->add(createPromoteMemoryToRegisterPass());
+    TheFPM->add(createInstructionCombiningPass());
+    TheFPM->add(createReassociatePass());
+    TheFPM->add(createGVNPass());
+    TheFPM->add(createCFGSimplificationPass());
     TheFPM->doInitialization();
 
     // declare void @writeInteger(i64)
