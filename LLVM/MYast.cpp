@@ -148,8 +148,7 @@ ast ast_continue(const char *s)
 
 ast ast_seq(ast l1, ast l2)
 {
-    if (l2 == NULL)
-        return l1;
+    //if (l2 == NULL) return l1;
     return ast_make(SEQ, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
@@ -702,6 +701,7 @@ void ast_sem(ast t)
 		//we check each real parameter to see if they match with the function's typical parameters
 		while(temp != NULL && params != NULL) {
 			ast_sem(temp->branch1);
+
 			if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
 				//if one of the types is an IArray then it can be matched with an Arraytype of any length
 				if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
@@ -717,8 +717,11 @@ void ast_sem(ast t)
 				params = params->u.eParameter.next;
 				temp = temp->branch2;
 		}
+
 		if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
 		if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
+
+        t->nesting_diff = currentScope->nestingLevel - f->nestingLevel;
 		printf("leaving procedure %s\n", t->id);
 		return;
     }
@@ -731,14 +734,15 @@ void ast_sem(ast t)
 		SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
 		if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
 		if (equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is void");
+
 		//we make the type of ast node the same as the function's. this is needed in order to use the called function in math calculations
 		t->type = f->u.eFunction.resultType;
 		ast_sem(t->branch1);
 		if (t->branch1 == NULL) {
 			if (f->u.eFunction.firstArgument != NULL) error("function has parameters and none were given");
 			else {
-			//function has no parameters and we called it using none, so everything's wrapped up real nice
-			return;
+			    //function has no parameters and we called it using none, so everything's wrapped up real nice
+			    return;
 			}
 		}
 		if (t->branch1 != NULL && f->u.eFunction.firstArgument == NULL) error("function has no parameters, however some were given");
@@ -747,9 +751,9 @@ void ast_sem(ast t)
 		if (!equalType(t->branch1->type, params->u.eParameter.type)) {
 			//if one of the types is an IArray then it can be matched with an Arraytype of any length
 			if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
-			//we need to check if the referenced types of the arrays match
-			if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
-				error("parameter type mismatch");
+                //we need to check if the referenced types of the arrays match
+                if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
+                    error("parameter type mismatch");
 			}
 			else error("parameter type mismatch");
 		}
@@ -777,8 +781,11 @@ void ast_sem(ast t)
 			params = params->u.eParameter.next;
 			temp = temp->branch2;
 		}
+
 		if (temp!=NULL && params==NULL) error("func call was given too many parameters");
 		if (temp==NULL && params!=NULL) error("func call was given too few parameters");
+
+        t->nesting_diff = currentScope->nestingLevel - f->nestingLevel;
 		printf("finished function call\n");
 		return;
 	}
@@ -1264,10 +1271,6 @@ Value *compile_function(ast f)
         parameters.push_back(PointerType::get(current_AR, 0));
         frame_fields.push_back(PointerType::get(current_AR, 0));
     }
-    else {
-        parameters.push_back(NULL);
-        frame_fields.push_back(NULL);
-    }
     current_AR = new_frame;
     //printf("point 0\n");
 
@@ -1290,14 +1293,15 @@ Value *compile_function(ast f)
         }
     }
     //printf("point 1\n");
-    //ast local = store_local_defs(f->branch2, frame_fields);
-    for(ast vars=f->branch2; vars!=NULL; vars=vars->branch2) {
-        if (vars->branch1->k == VAR) {
+
+    for(ast local_defs = f->branch2; local_defs != NULL; local_defs=local_defs->branch2) {
+        if (local_defs->branch1->k == VAR) {
             //we found a var def
-            ast var_def = vars->branch1;
+            ast var_def = local_defs->branch1;
             Type *var_type = translateType(var_def->type);
-            for(ast temp=var_def->branch1; temp!=NULL; temp=temp->branch1) {
+            for(ast temp = var_def->branch1; temp != NULL; temp = temp->branch1) {
                 frame_fields.push_back(var_type);
+                // printf("variable added to frame\n");
             }
         }
     }
@@ -1432,13 +1436,14 @@ Value *ast_compile(ast t)
     {
         //CASE PROBABLY ALREADY COVERED
         //check all variables and store them in the function's AR
-        // ast vars;
+        // ast local_defs;
         // Type *var_type = translateType(t->type);
-        // for(vars=t->branch1; vars!=NULL; vars=vars->branch1) {
-        //     int index = vars->offset;
+        // for(local_defs=t->branch1; local_defs!=NULL; local_defs=local_defs->branch1) {
+        //     int index = local_defs->offset;
         //     Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
         //     Builder.CreateStore(var_type, gep, false);
         // }
+        printf("first var is %s\n",t->branch1->id);
         return nullptr;
     }
     case ID:
@@ -1452,7 +1457,7 @@ Value *ast_compile(ast t)
     case ASSIGN:
     {
         Value *val = ast_compile(t->branch2);
-        int index = t->branch1->offset;
+        int indx = t->branch1->offset;
         printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
         std::cout << currentAlloca << std::endl;
         // if (t->branch1->k) {
@@ -1465,9 +1470,9 @@ Value *ast_compile(ast t)
             gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
             record = Builder.CreateLoad(gep, "previous");
         } 
-        gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(index)}, "");
-        //Builder.CreateLoad(gep, t->branch1->id);
+        gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(indx)}, "");
         Builder.CreateStore(val, gep, false);
+        printf("finished assign\n");
         return nullptr;
     }
     case EXIT:
@@ -1631,9 +1636,14 @@ Value *ast_compile(ast t)
         //Function *TheFunction = Builder.GetInsertBlock()->getParent();
         Function *Callee = TheModule->getFunction(t->id);
         std::vector<Value *> args;
+        Value *record = currentAlloca;
 
-        //AllocaInst *previousAlloca = currentAlloca;
-        args.push_back(currentAlloca);
+        for(int i=0; i < t->nesting_diff; i++) {
+            Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+            record = Builder.CreateLoad(gep, "previous");
+        }
+        args.push_back(record);
+
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
@@ -1648,9 +1658,14 @@ Value *ast_compile(ast t)
     {
         Function *Callee = TheModule->getFunction(t->id);
         std::vector<Value *> args;
-        printf("calling function %s\n", t->id);
+        // printf("calling function %s\n", t->id);
+        Value *record = currentAlloca;
 
-        args.push_back(currentAlloca);
+        for(int i=0; i < t->nesting_diff; i++) {
+            Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+            record = Builder.CreateLoad(gep, "previous");
+        }
+        args.push_back(record);
         //if func call has arguments we push them in the args vector
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
