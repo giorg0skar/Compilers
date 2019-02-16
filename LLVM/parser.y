@@ -257,12 +257,12 @@ void yyerror (const char *msg) {
 
 int main() {
     if (yyparse()) return 1;
-    printf("Parsing was succesful!\n");
+    //printf("Parsing was succesful!\n");
     initSymbolTable(997);
     openScope();
     set_lib_functions();
     ast_sem(t);
-    printf("Semantic analysis complete\n\n");
+    //printf("Semantic analysis complete\n\n");
     closeScope();
     
     llvm_compile_and_dump(t);

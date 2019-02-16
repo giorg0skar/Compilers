@@ -226,9 +226,18 @@ static GlobalVariable *TheVars;
 static GlobalVariable *TheNL;
 static Function *TheWriteInteger;
 static Function *TheWriteString;
+static Function *TheWriteChar;
+static Function *TheWriteByte;
+static Function *TheReadInteger;
+static Function *TheReadString;
+static Function *TheReadChar;
+static Function *TheReadByte;
+static Function *extend;
+static Function *shrink;
 StructType *current_AR = NULL;
 AllocaInst *currentAlloca = NULL;
 AllocaInst *retAlloca;
+BasicBlock *returnBlock;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -332,7 +341,7 @@ void ast_sem(ast t)
     switch (t->k)	{
     case FUNC_DEF:
     {
-        printf("entered func def\n");
+        //printf("entered func def\n");
         //openScope();
         ast_sem(t->branch1);
         ast_sem(t->branch2);
@@ -345,7 +354,7 @@ void ast_sem(ast t)
     case HEADER:
     {
         ;
-        printf("entered header\n");
+        //printf("entered header\n");
         SymbolEntry *f = newFunction(t->id);
         openScope();
 
@@ -399,7 +408,7 @@ void ast_sem(ast t)
     }
     case DECL:
     {
-        printf("entered decl %s\n", t->branch1->id);
+        //printf("entered decl %s\n", t->branch1->id);
         //DECL is the same as HEADER + we declare the function as forward 
         //branch1 points to header node
         //parameter declarations have their own scope
@@ -468,7 +477,7 @@ void ast_sem(ast t)
     case ID:
     {
         ;
-        printf("entered id -> %s\n", t->id);
+        //printf("entered id -> %s\n", t->id);
         //check if there's already a variable with the same name in current scope
         char c = t->id[0];
         if (!isalpha(c))
@@ -536,7 +545,7 @@ void ast_sem(ast t)
     }
     case RET:
     {
-        printf("entered return\n");
+        //printf("entered return\n");
         //we return an expr and leave the function
         //we must make sure return is inside a function with the same type as the return value
         ast_sem(t->branch1);
@@ -573,12 +582,12 @@ void ast_sem(ast t)
         }
         time_to_leave = 1;
         leave_code = RETURNING;
-        printf("finished return\n");
+        //printf("finished return\n");
         return;
     }
     case IF:
     {
-        printf("entered if\n");
+        //printf("entered if\n");
         ast_sem(t->branch1);
         checkForBool(t->branch1);
         if (!equalType(t->branch1->type, typeBoolean))
@@ -590,7 +599,7 @@ void ast_sem(ast t)
     }
     case IF_ELSE:
     {
-        printf("entered if else\n");
+        //printf("entered if else\n");
         ast_sem(t->branch1);
         checkForBool(t->branch1);
         if (!equalType(t->branch1->type, typeBoolean))
@@ -654,9 +663,9 @@ void ast_sem(ast t)
     {
         //we begin a new block.
         t->num_vars = currentScope->negOffset;
-        printf("block begins\n");
+        //printf("block begins\n");
         ast_sem(t->branch1);
-        printf("block ends\n");
+        //printf("block ends\n");
         return;
     }
     case PROC_CALL: {
@@ -664,7 +673,7 @@ void ast_sem(ast t)
 		//calling a previously defined function (with no return value)
 		//branch1-> expr , branch2-> expr_part (more expressions)
 		//we check if an entry with the given name exists, if it's a function with void return type
-		printf("calling procedure %s\n", t->id);
+		//printf("calling procedure %s\n", t->id);
 		SymbolEntry *f = lookupEntry(t->id, LOOKUP_ALL_SCOPES, true);
 		if (f->entryType != ENTRY_FUNCTION) error("name given is not a function");
 		if (!equalType(f->u.eFunction.resultType, typeVoid)) error("type mismatch, called function is not void");
@@ -720,12 +729,12 @@ void ast_sem(ast t)
 		if (temp==NULL && params!=NULL) error("proc call was given too few parameters");
 
         t->nesting_diff = currentScope->nestingLevel - f->nestingLevel;
-		printf("leaving procedure %s\n", t->id);
+		//printf("leaving procedure %s\n", t->id);
 		return;
     }
 	case FUNC_CALL: {
 		;
-		printf("calling function %s\n", t->id);
+		//printf("calling function %s\n", t->id);
 		//calling a previously defined function (with return value)
 		//branch1-> expr , branch2-> expr_part (more expressions)
 		//we check if an entry with the given name exists, if it's a function with non-void return type
@@ -784,7 +793,7 @@ void ast_sem(ast t)
 		if (temp==NULL && params!=NULL) error("func call was given too few parameters");
 
         t->nesting_diff = currentScope->nestingLevel - f->nestingLevel;
-		printf("finished function call\n");
+		//printf("finished function call\n");
 		return;
 	}
     case TID:
@@ -802,16 +811,16 @@ void ast_sem(ast t)
             t->type = e->u.eParameter.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eParameter.offset;
-            printf("parameter %s nesting diff is %d\n", t->id, t->nesting_diff);
-            printf("parameter %s offset is: %d\n", t->id, t->offset);
+            //printf("parameter %s nesting diff is %d\n", t->id, t->nesting_diff);
+            //printf("parameter %s offset is: %d\n", t->id, t->offset);
         }
         else if (e->entryType == ENTRY_VARIABLE)
         {
             t->type = e->u.eVariable.type;
             t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
             t->offset = e->u.eVariable.offset;
-            printf("variable %s nesting diff is %d\n", t->id, t->nesting_diff);
-            printf("variable %s offset is: %d\n", t->id, t->offset);
+            //printf("variable %s nesting diff is %d\n", t->id, t->nesting_diff);
+            //printf("variable %s offset is: %d\n", t->id, t->offset);
         }
         return;
     }
@@ -1228,12 +1237,35 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
+int isLibFunction(char *name) {
+    if (strcmp(name,"writeInteger") == 0) return 1;
+    if (strcmp(name,"writeByte") == 0) return 1;
+    if (strcmp(name,"writeChar") == 0) return 1;
+    if (strcmp(name,"writeString") == 0) return 1;
+
+    if (strcmp(name,"readInteger") == 0) return 1;
+    if (strcmp(name,"readByte") == 0) return 1;
+    if (strcmp(name,"readChar") == 0) return 1;
+    if (strcmp(name,"readString") == 0) return 1;
+
+    if (strcmp(name,"extend") == 0) return 1;
+    if (strcmp(name,"shrink") == 0) return 1;
+
+    if (strcmp(name,"strlen") == 0) return 1;
+    if (strcmp(name,"strcmp") == 0) return 1;
+    if (strcmp(name,"strcpy") == 0) return 1;
+    if (strcmp(name,"strcat") == 0) return 1;
+
+    return 0;
+}
 
 Value *compile_function(ast f)
 {
     //case of FUNC_DEF
     if (f == NULL) return nullptr;
+
     StructType *old = current_AR;
+    BasicBlock *OldRetBlock;
     StructType *new_frame = TheModule->getTypeByName(f->branch1->id);
     if (new_frame == NULL) {
         char *structname = (char *) malloc(sizeof(char)*(strlen(f->branch1->id) + 8) );
@@ -1243,12 +1275,12 @@ Value *compile_function(ast f)
     }
     std::vector<Type *> parameters;
     std::vector<Type *> frame_fields;
-    if (current_AR) {
+
+    if(!isLibFunction(f->branch1->id)) {
         parameters.push_back(PointerType::get(current_AR, 0));
-        frame_fields.push_back(PointerType::get(current_AR, 0));
     }
+    frame_fields.push_back(PointerType::get(current_AR, 0));
     current_AR = new_frame;
-    //printf("point 0\n");
 
     //iterate through the parameters and push the types in the vector
     ast params= f->branch1->branch1;
@@ -1268,8 +1300,8 @@ Value *compile_function(ast f)
             frame_fields.push_back(par_type);
         }
     }
-    //printf("point 1\n");
 
+    //local variable definitions
     for(ast local_defs = f->branch2; local_defs != NULL; local_defs=local_defs->branch2) {
         if (local_defs->branch1->k == VAR) {
             //we found a var def
@@ -1323,6 +1355,8 @@ Value *compile_function(ast f)
     if (!equalType(f->branch1->type, typeVoid)) {
         //we allocate memory for the return value
         retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
+        OldRetBlock = returnBlock;
+        returnBlock = BasicBlock::Create(TheContext, "return", NewFunction);
     }
     //store Function parameters in the current frame
     iter = NewFunction->arg_begin();
@@ -1338,9 +1372,6 @@ Value *compile_function(ast f)
     }
     //we start executing the block of the function
     ast_compile(f->branch3);
-    // BasicBlock *RetBlock = BasicBlock::Create(TheContext, "ret_block", NewFunction);
-    // Builder.CreateBr(RetBlock);
-    // Builder.SetInsertPoint(RetBlock);
 
     //if we encountered no return instruction, the function has void return type
     if (equalType(f->branch1->type, typeVoid)) {
@@ -1349,17 +1380,20 @@ Value *compile_function(ast f)
         Builder.SetInsertPoint(RetBlock);
         Builder.CreateRetVoid();
     }
-    // else {
-    //     BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
-    //     Builder.CreateBr(RetBlock);
-    //     Builder.SetInsertPoint(RetBlock);
-    //     Value *returnValue = Builder.CreateLoad(retAlloca, "");
-    //     Builder.CreateRet(returnValue);
-    // }
+    else {
+        // Function *endFunction = Builder.GetInsertBlock()->getParent();
+        Builder.CreateBr(returnBlock);
+        Builder.SetInsertPoint(returnBlock);
+
+        Value *returnValue = Builder.CreateLoad(retAlloca, "");
+        Builder.CreateRet(returnValue);
+        returnBlock = OldRetBlock;
+    }
 
     //function finished. we return to the previous AR
     current_AR = old;
     currentAlloca = oldAlloca;
+    // returnBlock = OldRetBlock;
     return nullptr;
 }
 
@@ -1382,51 +1416,56 @@ Value *ast_compile(ast t)
     }
     case HEADER:
     {
-        //CASE PROBABLY ALREADY COVERED
-        // Type *ret_type = translateType(t->type);
-        // std::vector<Type *> args;
-        // //ast_compile(t->branch1);
-        // //we store the type of the arguments
-        // ast params = t->branch1;
-        // Type *par_type = translateType(params->type);
-        // for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
-        //     ast_compile(temp);
-        //     args.push_back(par_type);
-        // }
-        // //we iterate over the list of the other fpar_def nodes.
-        // for(ast defs = t->branch2; defs!=NULL; defs=defs->branch2) {
-        //     params = defs->branch1;
-        //     par_type = translateType(params->type);
-        //     for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
-        //         ast_compile(temp);
-        //         args.push_back(par_type);
-        //     }
-        // }
-
-        // FunctionType* ftype = FunctionType::get(ret_type, args, false);
-        // Function *new_function = Function::Create(ftype, GlobalValue::PrivateLinkage, t->id, TheModule.get());
-
-        // BasicBlock *BB = BasicBlock::Create(TheContext, "entry", new_function);
-        // Builder.SetInsertPoint(BB);
+        //CASE ALREADY COVERED
         return nullptr;
     }
     case DECL:
     {
-        //TO-BE-DONE cases
+        StructType *new_frame = TheModule->getTypeByName(t->branch1->id);
+        if (new_frame == NULL) {
+            char *structname = (char *) malloc(sizeof(char)*(strlen(t->branch1->id) + 8) );
+            strcpy(structname, "struct_");
+            strcat(structname,t->branch1->id);
+            new_frame = StructType::create(TheContext, structname );
+        }
+        std::vector<Type *> parameters;
+        std::vector<Type *> frame_fields;
+
+        if(!isLibFunction(t->branch1->id)) {
+            parameters.push_back(PointerType::get(current_AR, 0));
+        }
+        frame_fields.push_back(PointerType::get(current_AR, 0));
+
+        //parameter definition
+        ast params= t->branch1->branch1;
+        Type *par_type;
+        if (params) {
+            par_type = translateType(params->type);
+            for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) {
+                parameters.push_back(par_type);
+                frame_fields.push_back(par_type);
+            }
+        }
+        for(ast defs = t->branch1->branch2; defs!=NULL; defs=defs->branch2) {
+            params = defs->branch1;
+            par_type = translateType(params->type);
+            for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+                parameters.push_back(par_type);
+                frame_fields.push_back(par_type);
+            }
+        }
+
+        //if the function doesn't already exist we create it
+        FunctionType *ftype = FunctionType::get(translateType(t->branch1->type), parameters, false);
+        Function *NewFunction = TheModule->getFunction(t->branch1->id);
+        if (NewFunction == NULL) {
+            NewFunction = Function::Create(ftype, GlobalValue::ExternalLinkage, t->branch1->id, TheModule.get());
+        }
         return nullptr;
     }
     case VAR:
     {
-        //CASE PROBABLY ALREADY COVERED
-        //check all variables and store them in the function's AR
-        // ast local_defs;
-        // Type *var_type = translateType(t->type);
-        // for(local_defs=t->branch1; local_defs!=NULL; local_defs=local_defs->branch1) {
-        //     int index = local_defs->offset;
-        //     Value *gep = Builder.CreateGEP(currentAlloca, std::vector<Value *>{c32(0), c32(index)}, "");
-        //     Builder.CreateStore(var_type, gep, false);
-        // }
-        //printf("first var is %s\n",t->branch1->id);
+        //CASE ALREADY COVERED
         return nullptr;
     }
     case ID:
@@ -1466,16 +1505,13 @@ Value *ast_compile(ast t)
     {
         Value *retval = ast_compile(t->branch1);
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
-        BasicBlock *RetBB = BasicBlock::Create(TheContext, "return", TheFunction);
         BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after_return", TheFunction);
 
-        Builder.CreateBr(RetBB);
-        Builder.SetInsertPoint(RetBB);
-        if (retval) Builder.CreateRet(retval);
-        else Builder.CreateRetVoid();
+        //Value *gep = Builder.CreateGEP(retAlloca, 0, "");
+        Builder.CreateStore(retval, retAlloca, false);
+        Builder.CreateBr(returnBlock);
         
         Builder.SetInsertPoint(AfterBB);
-        //Builder.CreateStore(retval, retAlloca, false);
         return nullptr;
     }
     case IF:
@@ -1648,11 +1684,15 @@ Value *ast_compile(ast t)
         std::vector<Value *> args;
         Value *record = currentAlloca;
 
-        for(int i=0; i < t->nesting_diff; i++) {
-            Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
-            record = Builder.CreateLoad(gep, "previous");
+        int isLib = isLibFunction(t->id);
+        
+        if (!isLib) {
+            for(int i=0; i < t->nesting_diff; i++) {
+                Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+                record = Builder.CreateLoad(gep, "previous");
+            }
+            args.push_back(record);
         }
-        args.push_back(record);
 
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
@@ -1661,21 +1701,25 @@ Value *ast_compile(ast t)
                 args.push_back(v);
             }
         }
-        Builder.CreateCall(Callee, args, t->id);
+        if (!isLib) Builder.CreateCall(Callee, args, t->id);
+        else Builder.CreateCall(Callee, args, "");
         return nullptr;
     }
     case FUNC_CALL:
     {
         Function *Callee = TheModule->getFunction(t->id);
         std::vector<Value *> args;
-        // printf("calling function %s\n", t->id);
         Value *record = currentAlloca;
 
-        for(int i=0; i < t->nesting_diff; i++) {
-            Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
-            record = Builder.CreateLoad(gep, "previous");
+        int isLib = isLibFunction(t->id);
+
+        if (!isLib) {
+            for(int i=0; i < t->nesting_diff; i++) {
+                Value *gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+                record = Builder.CreateLoad(gep, "previous");
+            }
+            args.push_back(record);
         }
-        args.push_back(record);
         //if func call has arguments we push them in the args vector
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
@@ -1684,7 +1728,8 @@ Value *ast_compile(ast t)
                 args.push_back(v);
             }
         }
-        return Builder.CreateCall(Callee, args, t->id);
+        if (!isLib) return Builder.CreateCall(Callee, args, t->id);
+        else return Builder.CreateCall(Callee, args, "");
     }
     case TID:
     {
@@ -1752,7 +1797,8 @@ Value *ast_compile(ast t)
     case NOT:
     {
         //Boolean not, and, or cases (!, &&, ||)
-        return nullptr;
+        Value *l = ast_compile(t->branch1);
+        return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
     }
     case AND:
     {
@@ -1819,25 +1865,20 @@ Value *ast_compile(ast t)
     return nullptr;
 }
 
-void llvm_compile_and_dump(ast t)
-{
-    // Initialize the module and the optimization passes.
-    TheModule = make_unique<Module>("dana program", TheContext);
-    TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
-    TheFPM->add(createPromoteMemoryToRegisterPass());
-    TheFPM->add(createInstructionCombiningPass());
-    TheFPM->add(createReassociatePass());
-    TheFPM->add(createGVNPass());
-    TheFPM->add(createCFGSimplificationPass());
-    TheFPM->doInitialization();
-
-    // declare void @writeInteger(i64)
+void declare_library_functions() {
+    // declare void @writeInteger(i32)
     FunctionType *writeInteger_type =
         FunctionType::get(Type::getVoidTy(TheContext),
-                          std::vector<Type *>{i64}, false);
+                          std::vector<Type *>{i32}, false);
     TheWriteInteger =
         Function::Create(writeInteger_type, Function::ExternalLinkage,
                          "writeInteger", TheModule.get());
+    // declare void @writeChar(i8)
+    FunctionType *writeChar_type = FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i8}, false);
+    TheWriteChar = Function::Create(writeChar_type, Function::ExternalLinkage, "writeChar", TheModule.get());
+    //declare void @writyByte(i8)
+    FunctionType *writeByte_type = FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i8}, false);
+    TheWriteByte = Function::Create(writeByte_type, Function::ExternalLinkage, "writeByte", TheModule.get());
     // declare void @writeString(i8*)
     FunctionType *writeString_type =
         FunctionType::get(Type::getVoidTy(TheContext),
@@ -1845,6 +1886,44 @@ void llvm_compile_and_dump(ast t)
     TheWriteString =
         Function::Create(writeString_type, Function::ExternalLinkage,
                          "writeString", TheModule.get());
+
+    //declare int @readInteger()
+    FunctionType *readInteger_type = FunctionType::get(Type::getInt32Ty(TheContext), NULL, false);
+    TheReadInteger = Function::Create(readInteger_type, Function::ExternalLinkage, "readInteger", TheModule.get());
+    //declare byte @readChar()
+    FunctionType *readChar_type = FunctionType::get(Type::getInt8Ty(TheContext), NULL, false);
+    TheReadChar = Function::Create(readChar_type, Function::ExternalLinkage, "readChar", TheModule.get());
+    //declare byte @readByte()
+    FunctionType *readByte_type = FunctionType::get(Type::getInt8Ty(TheContext), NULL, false);
+    TheReadByte = Function::Create(readByte_type, Function::ExternalLinkage, "readByte", TheModule.get());
+    //declare void @readInteger(i32, i8)
+    FunctionType *readString_type = 
+        FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i32, PointerType::get(i8, 0)}, false);
+    TheReadString = Function::Create(readString_type, Function::ExternalLinkage, "readString", TheModule.get());
+
+    //declare int @extend(i8)
+    FunctionType *extend_type = FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>{i8}, false);
+    extend = Function::Create(extend_type, Function::ExternalLinkage, "extend", TheModule.get());
+    //declare byte @shrink(i32)
+    FunctionType *shrink_type = FunctionType::get(Type::getInt8Ty(TheContext), std::vector<Type *>{i32}, false);
+    shrink = Function::Create(shrink_type, Function::ExternalLinkage, "shrink", TheModule.get());
+
+    return;
+}
+
+void llvm_compile_and_dump(ast t)
+{
+    // Initialize the module and the optimization passes.
+    TheModule = make_unique<Module>("dana program", TheContext);
+    TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
+    // TheFPM->add(createPromoteMemoryToRegisterPass());
+    // TheFPM->add(createInstructionCombiningPass());
+    // TheFPM->add(createReassociatePass());
+    // TheFPM->add(createGVNPass());
+    // TheFPM->add(createCFGSimplificationPass());
+    TheFPM->doInitialization();
+
+    declare_library_functions();
                          
     // Define and start the main function.
     // Constant *c = TheModule->getOrInsertFunction("main", i32, NULL);
@@ -1859,7 +1938,7 @@ void llvm_compile_and_dump(ast t)
     ast_compile(t);
 
     Function *main = TheModule->getFunction("main");
-    //Builder.CreateRet(c32(0));
+
     // Verify and optimize the main function.
     bool bad = verifyModule(*TheModule, &errs());
     if (bad)
