@@ -618,7 +618,7 @@ void ast_sem(ast t)
         //we need to remember the loop's name if it has one
         if (strcmp(t->id, "\0") != 0)
         {
-            Type_h ctype = typeArray(strlen(t->id + 1), typeChar);
+            Type_h ctype = typeArray(strlen(t->id) + 1, typeChar);
             SymbolEntry *e = newConstant(t->id, ctype, t->id);
         }
 
@@ -635,6 +635,8 @@ void ast_sem(ast t)
                 error("break given string that's not a loop name");
             if (l->nestingLevel > currentScope->nestingLevel)
                 error("break isn't located inside the %s loop", t->id);
+
+            t->nesting_diff = currentScope->nestingLevel - l->nestingLevel;
         }
         time_to_leave = 1;
         leave_code = BREAKING;
@@ -650,6 +652,8 @@ void ast_sem(ast t)
                 error("break given string that's not a loop name");
             if (currentScope->nestingLevel < l->nestingLevel)
                 error("continue isn't located inside the %s loop", t->id);
+
+            t->nesting_diff = currentScope->nestingLevel - l->nestingLevel;
         }
         return;
     }
@@ -1663,6 +1667,15 @@ Value *ast_compile(ast t)
     }
     case CONT:
     {
+        char *name;
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *ContBlock = BasicBlock::Create(TheContext, "cont", TheFunction);
+        if (!strcmp(t->id,"\0")) {
+            //continue is given a specific name
+        }
+        else {
+            name = NULL;
+        }
         return nullptr;
     }
     case SEQ:
