@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 //#include <cstdio>
 //#include <cstdlib>
 #include "MYast.hpp"
@@ -222,7 +223,6 @@ static std::unique_ptr<Module> TheModule;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 
 // Global LLVM variables related to the generated code.
-static GlobalVariable *TheVars;
 static GlobalVariable *TheNL;
 static Function *TheWriteInteger;
 static Function *TheWriteString;
@@ -234,10 +234,15 @@ static Function *TheReadChar;
 static Function *TheReadByte;
 static Function *extend;
 static Function *shrink;
+static Function *TheStrlen;
+static Function *TheStrcmp;
+static Function *TheStrcpy;
+static Function *TheStrcat;
 StructType *current_AR = NULL;
 AllocaInst *currentAlloca = NULL;
 AllocaInst *retAlloca;
 BasicBlock *returnBlock;
+std::map<char *, BasicBlock *> loopMap;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -1622,17 +1627,21 @@ Value *ast_compile(ast t)
     }
     case LOOP:
     {
-        //if the loop has a name we store it
-        char *name;
-        if (!strcmp(t->id, "\0")) {
-            name = (char *) malloc(strlen(t->id)+1);
-        }
-        else name = NULL;
         // Make the new basic block for the loop.
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *PreheaderBB = Builder.GetInsertBlock();
         BasicBlock *LoopBB = BasicBlock::Create(TheContext, "loop", TheFunction);
         BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after_loop", TheFunction);
+
+        //if the loop has a name we store it
+        char *name;
+        if (!strcmp(t->id, "\0")) {
+            name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
+            loopMap.insert(std::pair<char *, BasicBlock*>(name, AfterBB));
+        }
+        else {
+            name = NULL;
+        }
 
         // Insert an explicit fall-through from the current block.
         Builder.CreateBr(LoopBB);
@@ -1651,11 +1660,15 @@ Value *ast_compile(ast t)
     {
         char *name;
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *AfterBlock;
         BasicBlock *BreakBlock = BasicBlock::Create(TheContext, "break", TheFunction);
 
         if (!strcmp(t->id, "\0")) {
             //if break is given a loop name we break out of that specific loop.
-            name = (char *) malloc(strlen(t->id)+1);
+            name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
+            AfterBlock = (loopMap.find(name))->second;
+            Builder.CreateBr(AfterBlock);
+            Builder.SetInsertPoint(BreakBlock);
         }
         else {
             //otherwise we break the closest loop
@@ -1672,6 +1685,7 @@ Value *ast_compile(ast t)
         BasicBlock *ContBlock = BasicBlock::Create(TheContext, "cont", TheFunction);
         if (!strcmp(t->id,"\0")) {
             //continue is given a specific name
+            name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
         }
         else {
             name = NULL;
@@ -1921,6 +1935,19 @@ void declare_library_functions() {
     FunctionType *shrink_type = FunctionType::get(Type::getInt8Ty(TheContext), std::vector<Type *>{i32}, false);
     shrink = Function::Create(shrink_type, Function::ExternalLinkage, "shrink", TheModule.get());
 
+    //declare int @strlen(*i8)
+    FunctionType *strlen_type = FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>{PointerType::get(i8, 0)}, false);
+    TheStrlen = Function::Create(strlen_type, Function::ExternalLinkage, "strlen", TheModule.get());
+    //declare int @strcmp(*i8,*i8)
+    FunctionType *strcmp_type = 
+        FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>{PointerType::get(i8, 0), PointerType::get(i8, 0)}, false);
+    TheStrcmp = Function::Create(strcmp_type, Function::ExternalLinkage, "strcmp", TheModule.get());
+    //declare void @strcpy(*i8,*i8)
+    FunctionType *strcpy_type = 
+        FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{PointerType::get(i8, 0), PointerType::get(i8, 0)}, false);
+    TheStrcpy = Function::Create(strcpy_type, Function::ExternalLinkage, "strcpy", TheModule.get());
+    //declare void @strcat(*i8,*i8)
+    TheStrcat = Function::Create(strcpy_type, Function::ExternalLinkage, "strcat", TheModule.get());
     return;
 }
 
