@@ -4,12 +4,15 @@ def main is int
         var xx is byte
         return: a + b
     var x y is int
+    def h: n as int
+        writeInteger: n
+        exit
 
     #writeString: "hello world"
-    def fact is int: n as int
-        if n <= 1: return: 1
-        else: return: n * fact(n-1)
+    loop dor:
+        x := g(1,2)
+        if x >=3: continue: dor
 
-    writeInteger: fact(4)
+    h: 4
     return: 0
 

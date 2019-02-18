@@ -1513,12 +1513,12 @@ Value *ast_compile(ast t)
         //we exit the closest block with void return value
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *ExitBlock = BasicBlock::Create(TheContext, "exit", TheFunction);
-        int index = blockNames.size() -1;
-        BasicBlock *ExitPoint = blockNames.at(index);
+        // int index = blockNames.size() -1;
+        // BasicBlock *ExitPoint = blockNames.at(index);
 
-        Builder.CreateBr(ExitPoint);
+        Builder.CreateBr(returnBlock);
         Builder.SetInsertPoint(ExitBlock);
-        blockNames.pop_back();
+        //blockNames.pop_back();
         return nullptr;
     }
     case RET:
@@ -1676,7 +1676,8 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *AfterBlock;
         BasicBlock *BreakBlock = BasicBlock::Create(TheContext, "break", TheFunction);
-        std::map<char *, BasicBlock*>::iterator iter,closestLoop;
+        std::map<char *, BasicBlock*>::iterator iter;
+        std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
         //auto list = & TheFunction->getBasicBlockList();
 
         if (!strcmp(t->id, "\0")) {
@@ -1690,11 +1691,12 @@ Value *ast_compile(ast t)
         }
         else {
             //otherwise we break the closest loop
-            iter = afterLoopMap.begin();
-            while(iter != afterLoopMap.end()) {
-                closestLoop = iter;
-                iter++;
-            }
+            // iter = afterLoopMap.begin();
+            // while(iter != afterLoopMap.end()) {
+            //     closestLoop = iter;
+            //     iter++;
+            //}
+            closestLoop = afterLoopMap.rbegin();
             AfterBlock = closestLoop->second;
         }
 
@@ -1707,7 +1709,8 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *LoopBlock;
         BasicBlock *ContBlock = BasicBlock::Create(TheContext, "cont", TheFunction);
-        std::map<char *, BasicBlock*>::iterator iter,closestLoop;
+        std::map<char *, BasicBlock*>::iterator iter;
+        std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
 
         if (!strcmp(t->id,"\0")) {
             //continue is given a specific name
@@ -1718,11 +1721,12 @@ Value *ast_compile(ast t)
             }
         }
         else {
-            iter = LoopMap.begin();
-            while(iter != LoopMap.end()) {
-                closestLoop = iter;
-                iter++;
-            }
+            // iter = LoopMap.begin();
+            // while(iter != LoopMap.end()) {
+            //     closestLoop = iter;
+            //     iter++;
+            // }
+            closestLoop = LoopMap.rbegin();
             LoopBlock = closestLoop->second;
         }
 
@@ -1955,15 +1959,18 @@ void declare_library_functions() {
                          "writeString", TheModule.get());
 
     //declare int @readInteger()
-    FunctionType *readInteger_type = FunctionType::get(Type::getInt32Ty(TheContext), NULL, false);
+    FunctionType *readInteger_type = FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>(), false);
     TheReadInteger = Function::Create(readInteger_type, Function::ExternalLinkage, "readInteger", TheModule.get());
+
     //declare byte @readChar()
-    FunctionType *readChar_type = FunctionType::get(Type::getInt8Ty(TheContext), NULL, false);
+    FunctionType *readChar_type = FunctionType::get(Type::getInt8Ty(TheContext), std::vector<Type *>(), false);
     TheReadChar = Function::Create(readChar_type, Function::ExternalLinkage, "readChar", TheModule.get());
+
     //declare byte @readByte()
-    FunctionType *readByte_type = FunctionType::get(Type::getInt8Ty(TheContext), NULL, false);
+    FunctionType *readByte_type = FunctionType::get(Type::getInt8Ty(TheContext), std::vector<Type *>(), false);
     TheReadByte = Function::Create(readByte_type, Function::ExternalLinkage, "readByte", TheModule.get());
-    //declare void @readInteger(i32, i8)
+
+    //declare void @readString(i32, *i8)
     FunctionType *readString_type = 
         FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i32, PointerType::get(i8, 0)}, false);
     TheReadString = Function::Create(readString_type, Function::ExternalLinkage, "readString", TheModule.get());
