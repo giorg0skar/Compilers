@@ -242,7 +242,9 @@ StructType *current_AR = NULL;
 AllocaInst *currentAlloca = NULL;
 AllocaInst *retAlloca;
 BasicBlock *returnBlock;
-std::map<char *, BasicBlock *> loopMap;
+std::map<char *, BasicBlock *> afterLoopMap;
+std::map<char *, BasicBlock *> LoopMap;
+std::vector<BasicBlock *> blockNames;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -1508,6 +1510,15 @@ Value *ast_compile(ast t)
     }
     case EXIT:
     {
+        //we exit the closest block with void return value
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *ExitBlock = BasicBlock::Create(TheContext, "exit", TheFunction);
+        int index = blockNames.size() -1;
+        BasicBlock *ExitPoint = blockNames.at(index);
+
+        Builder.CreateBr(ExitPoint);
+        Builder.SetInsertPoint(ExitBlock);
+        blockNames.pop_back();
         return nullptr;
     }
     case RET:
@@ -1637,10 +1648,14 @@ Value *ast_compile(ast t)
         char *name;
         if (!strcmp(t->id, "\0")) {
             name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
-            loopMap.insert(std::pair<char *, BasicBlock*>(name, AfterBB));
+            strcpy(name, t->id);
+            afterLoopMap.insert(std::pair<char *, BasicBlock*>(name, AfterBB));
+            LoopMap.insert(std::pair<char *, BasicBlock*>(name, LoopBB));
         }
         else {
             name = NULL;
+            afterLoopMap.insert(std::pair<char *, BasicBlock*>("\0", AfterBB));
+            LoopMap.insert(std::pair<char *, BasicBlock*>("\0", LoopBB));
         }
 
         // Insert an explicit fall-through from the current block.
@@ -1658,38 +1673,61 @@ Value *ast_compile(ast t)
     }
     case BREAK:
     {
-        char *name;
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *AfterBlock;
         BasicBlock *BreakBlock = BasicBlock::Create(TheContext, "break", TheFunction);
+        std::map<char *, BasicBlock*>::iterator iter,closestLoop;
+        //auto list = & TheFunction->getBasicBlockList();
 
         if (!strcmp(t->id, "\0")) {
             //if break is given a loop name we break out of that specific loop.
-            name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
-            AfterBlock = (loopMap.find(name))->second;
-            Builder.CreateBr(AfterBlock);
-            Builder.SetInsertPoint(BreakBlock);
+            //name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
+            iter = afterLoopMap.find(t->id);
+            while(iter != afterLoopMap.end()) {
+                if (strcmp(iter->first, t->id)==0) AfterBlock = iter->second;
+                iter++;
+            }
         }
         else {
             //otherwise we break the closest loop
-            name = NULL;
-            Builder.CreateBr(BreakBlock);
-            Builder.SetInsertPoint(BreakBlock);
+            iter = afterLoopMap.begin();
+            while(iter != afterLoopMap.end()) {
+                closestLoop = iter;
+                iter++;
+            }
+            AfterBlock = closestLoop->second;
         }
+
+        Builder.CreateBr(AfterBlock);
+        Builder.SetInsertPoint(BreakBlock);
         return nullptr;
     }
     case CONT:
     {
-        char *name;
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *LoopBlock;
         BasicBlock *ContBlock = BasicBlock::Create(TheContext, "cont", TheFunction);
+        std::map<char *, BasicBlock*>::iterator iter,closestLoop;
+
         if (!strcmp(t->id,"\0")) {
             //continue is given a specific name
-            name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
+            iter = LoopMap.find(t->id);
+            while(iter != LoopMap.end()) {
+                if (strcmp(iter->first, t->id) == 0) LoopBlock = iter->second;
+                iter++;
+            }
         }
         else {
-            name = NULL;
+            iter = LoopMap.begin();
+            while(iter != LoopMap.end()) {
+                closestLoop = iter;
+                iter++;
+            }
+            LoopBlock = closestLoop->second;
         }
+
+        Builder.CreateBr(LoopBlock);
+        Builder.SetInsertPoint(ContBlock);
         return nullptr;
     }
     case SEQ:
@@ -1700,7 +1738,9 @@ Value *ast_compile(ast t)
     }
     case BLOCK:
     {
-        //UNFINISHED
+        //we push the current basic block to the vector
+        // BasicBlock *currentBlock = Builder.GetInsertBlock();
+        // blockNames.push_back(currentBlock);
         ast_compile(t->branch1);
         return nullptr;
     }
