@@ -212,14 +212,14 @@ Char {singlequote}{1}.{singlequote}{1}
 ">="			{ isNextEOF(); return T_greatereq; }
 "<>"			{ isNextEOF(); return T_noteq; }
 ":="			{ isNextEOF(); return T_assign; }
+"<"				{ isNextEOF(); return T_less;}
+">"				{ isNextEOF(); return T_greater;}
 
 	/*extra regular expression-whenever you find the following return the ascii character*/
 
-[(),=+\-*/%!&|><]	{ char t=yytext[0]; isNextEOF(); 
-					  if (t == '<') return T_less;
-					  else if (t == '>') return T_greater;
-					  else return t; 
-					}
+[(),=+\-*/%!&|]	{ char t=yytext[0]; isNextEOF(); 
+					  return t;
+				}
 
 "["			{ char t=yytext[0]; isNextEOF(); return t; }
 "]"			{ char t=yytext[0]; isNextEOF(); return t; }

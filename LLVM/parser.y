@@ -13,6 +13,7 @@ void yyerror (const char *msg);
 int yylex(void);
 
 extern int linenumber;
+std::vector<int> array_dims;
 ast t;
 %}
 

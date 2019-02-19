@@ -1366,9 +1366,10 @@ Value *compile_function(ast f)
     if (!equalType(f->branch1->type, typeVoid)) {
         //we allocate memory for the return value
         retAlloca = Builder.CreateAlloca(translateType(f->branch1->type), 0, "");
-        OldRetBlock = returnBlock;
-        returnBlock = BasicBlock::Create(TheContext, "return", NewFunction);
     }
+    OldRetBlock = returnBlock;
+    returnBlock = BasicBlock::Create(TheContext, "return", NewFunction);
+
     //store Function parameters in the current frame
     iter = NewFunction->arg_begin();
     //std::vector<Type *> idxlist;
@@ -1385,21 +1386,22 @@ Value *compile_function(ast f)
     ast_compile(f->branch3);
 
     //if we encountered no return instruction, the function has void return type
-    if (equalType(f->branch1->type, typeVoid)) {
-        BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
-        Builder.CreateBr(RetBlock);
-        Builder.SetInsertPoint(RetBlock);
-        Builder.CreateRetVoid();
-    }
-    else {
-        // Function *endFunction = Builder.GetInsertBlock()->getParent();
-        Builder.CreateBr(returnBlock);
-        Builder.SetInsertPoint(returnBlock);
+    // if (equalType(f->branch1->type, typeVoid)) {
+    //     BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
+    //     Builder.CreateBr(RetBlock);
+    //     Builder.SetInsertPoint(RetBlock);
+    //     Builder.CreateRetVoid();
+    // }
+    // Function *endFunction = Builder.GetInsertBlock()->getParent();
+    Builder.CreateBr(returnBlock);
+    Builder.SetInsertPoint(returnBlock);
 
+    if (!equalType(f->branch1->type, typeVoid)) {
         Value *returnValue = Builder.CreateLoad(retAlloca, "");
         Builder.CreateRet(returnValue);
-        returnBlock = OldRetBlock;
     }
+    else Builder.CreateRetVoid();
+    returnBlock = OldRetBlock;
 
     //function finished. we return to the previous AR
     current_AR = old;
@@ -1765,6 +1767,7 @@ Value *ast_compile(ast t)
             args.push_back(record);
         }
 
+        //if the call has arguments we insert them in the args vector
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
@@ -1772,8 +1775,9 @@ Value *ast_compile(ast t)
                 args.push_back(v);
             }
         }
-        if (!isLib) Builder.CreateCall(Callee, args, t->id);
-        else Builder.CreateCall(Callee, args, "");
+        // if (!isLib) Builder.CreateCall(Callee, args, "");
+        // else Builder.CreateCall(Callee, args, "");
+        Builder.CreateCall(Callee, args, "");
         return nullptr;
     }
     case FUNC_CALL:
@@ -1791,6 +1795,7 @@ Value *ast_compile(ast t)
             }
             args.push_back(record);
         }
+
         //if func call has arguments we push them in the args vector
         if (t->branch1) {
             args.push_back(ast_compile(t->branch1));
@@ -1873,10 +1878,18 @@ Value *ast_compile(ast t)
     }
     case AND:
     {
-        return nullptr;
+        Value *l = ast_compile(t->branch1);
+        Value *r = ast_compile(t->branch2);
+        bool res1 = cast<bool>(l);
+        bool res2 = cast<bool>(r);
+        bool result = l && r;
+        Value *val = cast<Value *>(result);
+        return Builder.CreateICmpEQ(val, c32(0), "cond_andtmp");
     }
     case OR:
     {
+        Value *l = ast_compile(t->branch1);
+        Value *r = ast_compile(t->branch2);
         return nullptr;
     }
     case EQ:
