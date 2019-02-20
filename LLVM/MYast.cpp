@@ -271,17 +271,17 @@ Type *translateType(Type_h type)
         return Type::getVoidTy(TheContext);
     if (isArray(type))
     {
-        Type_h ty = type->refType;
+        Type_h ty = type;
         std::vector<int> array_sizes;
-        while (isArray(ty->refType))
+        while (isArray(ty))
         {
             array_sizes.push_back(ty->size);
             ty = ty->refType;
         }
         //the size of the last dimension
-        array_sizes.push_back(ty->size);
+        //array_sizes.push_back(ty->size);
 
-        auto base = translateType(ty->refType);
+        auto base = translateType(ty);
         for (auto size : array_sizes)
         {
             base = ArrayType::get(base, size);
@@ -292,18 +292,18 @@ Type *translateType(Type_h type)
     }
     if (isIArray(type)) 
     {
-        Type_h ty = type->refType;
+        Type_h ty = type;
         std::vector<int> array_sizes;
         ty = ty->refType;
-        while (isArray(ty->refType))
+        while (isArray(ty))
         {
             array_sizes.push_back(ty->size);
             ty = ty->refType;
         }
         //the size of the last dimension
-        array_sizes.push_back(ty->size);
+        //array_sizes.push_back(ty->size);
 
-        auto base = translateType(ty->refType);
+        auto base = translateType(ty);
         for (auto size : array_sizes)
         {
             base = ArrayType::get(base, size);
@@ -858,6 +858,7 @@ void ast_sem(ast t)
         SymbolEntry *e2 = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
         if (!isArray(t->branch1->type) && !isIArray(t->branch1->type))
             error("l_value is not an array");
+        
         ast_sem(t->branch2);
         if (!equalType(t->branch2->type, typeInteger))
             error("tried to access an array with index not being integer");
@@ -1492,12 +1493,15 @@ Value *ast_compile(ast t)
     case ASSIGN:
     {
         Value *val = ast_compile(t->branch2);
-        int indx = t->branch1->offset;
         //printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
         // if (t->branch1->k) {
         //     index = t->branch1->offset;
         // }
-        int frame_diff = t->branch1->nesting_diff;
+        ast node;
+        //in case left side is access to an array element, we iterate until we find the base array node
+        for(node=t->branch1; node->branch1 != NULL; node=node->branch1) ;
+        int frame_diff = node->nesting_diff;
+        int indx = node->offset;
         Value *record = currentAlloca;
         Value *gep;
         for(int i=0; i < frame_diff; i++) {
@@ -1825,7 +1829,28 @@ Value *ast_compile(ast t)
     }
     case ARR:
     {
-        return nullptr;
+        Value *val = ast_compile(t->branch2);
+        std::vector<Value *> idxlist;
+        idxlist.push_back(val);
+        ast temp;
+        for(temp = t->branch1; temp->branch1 != NULL; temp=temp->branch1) {
+            //loop until we reach the base node. we store the index for each array dimension
+            idxlist.push_back(ast_compile(temp->branch2));
+        }
+        int frame_diff = temp->nesting_diff;
+        int offset = temp->offset;
+        Value *record = currentAlloca;
+        Value *gep;
+        for(int i=0; i < frame_diff; i++) {
+            gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(0)}, "");
+            record = Builder.CreateLoad(gep, "previous");
+        }
+        
+        Value *array_value = record;
+        for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
+            array_value = Builder.CreateGEP(array_value, std::vector<Value *>{(*iter), c32(0)}, "");
+        }
+        return Builder.CreateLoad(array_value, "");
     }
     case STRING_LIT:
     {

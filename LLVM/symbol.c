@@ -705,11 +705,11 @@ void printMode (PassMode mode)
 }
 
 int isPointer(Type_h type) {
-    return type->kind == TYPE_POINTER;
+    return (type->kind == TYPE_POINTER);
 }
 int isArray(Type_h type){
-    return type->kind == TYPE_ARRAY;
+    return (type->kind == TYPE_ARRAY);
 }
 int isIArray(Type_h type){
-    return type->kind == TYPE_IARRAY;
+    return (type->kind == TYPE_IARRAY);
 }

@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
 #include "MYast.hpp"
 //#include "symbol.h"
 //#include <vector>
 //#include <string>
 
 void yyerror (const char *msg);
+Type_h type_create(Type_h base);
 
 //vector<string> *ids; 
 int yylex(void);
@@ -126,19 +128,19 @@ data_type:
 ;
 
 type:
-  data_type { $$ = $1; }
-| type '[' T_intconst ']' { $$ = typeArray($3,$1); }
+  data_type { $$ = $1; array_dims.clear(); }
+| type '[' T_intconst ']' { $$ = $1; array_dims.push_back($3); }
 ;
 
 fpar_type:
-  type  { $$ = $1; }
+  type  { $$ = type_create($1); }
 | "ref" data_type { $$ = typePointer($2); }
-| fpar_part { $$ = $1; }
+| fpar_part { $$ = type_create($1); }
 ;
 
 fpar_part:
-  data_type '[' ']' { $$ = typeIArray($1); }
-| fpar_part '[' T_intconst ']'  { $$ = typeArray($3,$1); }
+  data_type '[' ']' { array_dims.clear(); $$ = typeIArray($1); }
+| fpar_part '[' T_intconst ']'  { array_dims.push_back($3); $$ = $1; }
 ;
 
 local_def:
@@ -153,7 +155,7 @@ func_decl:
 ;
 
 var_def:
-  "var" id "is" type  { $$ = ast_var($2,$4); }
+  "var" id "is" type  { $$ = ast_var($2, type_create($4)); }
 ;
 
 id:
@@ -254,6 +256,19 @@ void yyerror (const char *msg) {
   fprintf(stderr, "Aborting, I've had enough with line %d...\n",linenumber);
   //fprintf(stderr, "text is %s\n", yytext);
   exit(1);
+}
+
+Type_h type_create(Type_h base) {
+  Type_h arrtype;
+  arrtype = base;
+  for(auto it=array_dims.rbegin(); it != array_dims.rend(); ++it) {
+    Type_h th = typeArray((*it), arrtype);
+    arrtype = th;
+  }
+  //array_dims.clear();
+  //printType(arrtype);
+  //printf("\n");
+  return arrtype;
 }
 
 int main() {
