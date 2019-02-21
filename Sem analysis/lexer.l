@@ -234,7 +234,7 @@ Char {singlequote}{1}.{singlequote}{1}
 void isNextEOF(void) {
 	int c;
 	c=input();
-	if (c != -1) {
+	if (c != 0) {
 		//printf("1\n");
 		unput(c);
 		return;

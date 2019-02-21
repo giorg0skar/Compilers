@@ -128,8 +128,8 @@ data_type:
 ;
 
 type:
-  data_type { $$ = $1; array_dims.clear(); }
-| type '[' T_intconst ']' { $$ = $1; array_dims.push_back($3); }
+  data_type { array_dims.clear(); $$ = $1; }
+| type '[' T_intconst ']' { array_dims.push_back($3); $$ = $1; }
 ;
 
 fpar_type:
@@ -140,6 +140,7 @@ fpar_type:
 
 fpar_part:
   data_type '[' ']' { array_dims.clear(); $$ = typeIArray($1); }
+| data_type '[' T_intconst ']' { array_dims.clear(); array_dims.push_back($3); $$ = $1; }
 | fpar_part '[' T_intconst ']'  { array_dims.push_back($3); $$ = $1; }
 ;
 

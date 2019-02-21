@@ -504,7 +504,6 @@ void ast_sem(ast t)
         return;
     case ASSIGN:
     {
-        //WARNING: still need to check the case where k = STRING_LIT.
         //assign a value to a variable
         ast_sem(t->branch1);
         if (isArray(t->branch1->type) || isIArray(t->branch1->type))
@@ -514,7 +513,12 @@ void ast_sem(ast t)
         //check if types are the same
         if (!equalType(t->branch1->type, t->branch2->type))
         {
-            error("type mismatch in assigning value to variable");
+            if (isPointer(t->branch1->type)) {
+                //check if refType of pointer is the same as the right hand value
+                if (!equalType(t->branch1->type->refType,t->branch2->type))
+                    error("type mismatch in assigning value to variable");
+            }
+            else error("type mismatch in assigning value to variable");
         }
         if (k == TID)
         {
@@ -706,7 +710,12 @@ void ast_sem(ast t)
             if (isArray(t->branch1->type) && isIArray(params->u.eParameter.type)) {
                 //we need to check if the referenced types of the arrays match
                 if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
-                error("parameter type mismatch");
+                    error("parameter type mismatch");
+            }
+            else if (isPointer(params->u.eParameter.type)) {
+                //if parameter is passed by reference we check if argument is l_value
+                if ((t->branch1->k != TID) && (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
+                    error("parameter type mismatch");
             }
             else error("parameter type mismatch");
 		}
@@ -724,9 +733,14 @@ void ast_sem(ast t)
 				//if one of the types is an IArray then it can be matched with an Arraytype of any length
 				if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
 				//we need to check if the referenced types of the arrays match
-				if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
-					error("parameter type mismatch");
+				    if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+					    error("parameter type mismatch");
 				}
+                else if (isPointer(params->u.eParameter.type)) {
+                    //if parameter is passed by reference we check if argument is l_value
+                    if ((temp->branch1->k != TID) && (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
+                        error("parameter type mismatch");
+                }
 				else error("parameter type mismatch");
 			}
 			if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
@@ -773,6 +787,11 @@ void ast_sem(ast t)
                 if (!equalType(t->branch1->type->refType, params->u.eParameter.type->refType))
                     error("parameter type mismatch");
 			}
+            else if (isPointer(params->u.eParameter.type)) {
+                //if parameter is passed by reference we check if argument is l_value
+                if ((t->branch1->k != TID) && (t->branch1->k != ARR) && (t->branch1->k != STRING_LIT))
+                    error("parameter type mismatch");
+            }
 			else error("parameter type mismatch");
 		}
 		if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (t->branch1->k != TID) 
@@ -785,13 +804,18 @@ void ast_sem(ast t)
 		while(temp!=NULL && params!=NULL) {
 			ast_sem(temp->branch1);
 			if (!equalType(temp->branch1->type, params->u.eParameter.type)) {
-			//if one of the types is an IArray then it can be matched with an Arraytype of any length
-			if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
-				//we need to check if the referenced types of the arrays match
-				if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
-				error("parameter type mismatch");
-			}
-			else error("parameter type mismatch");
+                //if one of the types is an IArray then it can be matched with an Arraytype of any length
+                if (isArray(temp->branch1->type) && isIArray(params->u.eParameter.type)) {
+                    //we need to check if the referenced types of the arrays match
+                    if (!equalType(temp->branch1->type->refType, params->u.eParameter.type->refType))
+                    error("parameter type mismatch");
+                }
+                else if (isPointer(params->u.eParameter.type)) {
+                        //if parameter is passed by reference we check if argument is l_value
+                        if ((temp->branch1->k != TID) && (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
+                            error("parameter type mismatch");
+                }
+                else error("parameter type mismatch");
 			}
 			if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
 				&& (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
@@ -1498,8 +1522,13 @@ Value *ast_compile(ast t)
         //     index = t->branch1->offset;
         // }
         ast node;
+        std::vector<Value *> idxlist;
         //in case left side is access to an array element, we iterate until we find the base array node
-        for(node=t->branch1; node->branch1 != NULL; node=node->branch1) ;
+        for(node=t->branch1; node->branch1 != NULL; node=node->branch1) {
+            Value *i = ast_compile(node->branch2);
+            idxlist.push_back(i);
+        }
+
         int frame_diff = node->nesting_diff;
         int indx = node->offset;
         Value *record = currentAlloca;
@@ -1510,6 +1539,18 @@ Value *ast_compile(ast t)
         }
 
         gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(indx)}, "");
+        if (isArray(node->type)) {
+            //Value *addr = Builder.CreateLoad(gep, "");
+            //gep = addr;
+            for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); ++iter) {
+                gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), *iter}, "");
+            }
+        }
+        if (isPointer(node->type)) {
+            gep = Builder.CreateLoad(gep, "");
+            //gep = Builder.CreateGEP(addr, std::vector<Value *>{c32(0), c32(0)}, "");
+        }
+
         Builder.CreateStore(val, gep, false);
         //printf("finished assign\n");
         return nullptr;
@@ -1846,9 +1887,9 @@ Value *ast_compile(ast t)
             record = Builder.CreateLoad(gep, "previous");
         }
         
-        Value *array_value = record;
+        Value *array_value = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
         for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
-            array_value = Builder.CreateGEP(array_value, std::vector<Value *>{(*iter), c32(0)}, "");
+            array_value = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
         }
         return Builder.CreateLoad(array_value, "");
     }

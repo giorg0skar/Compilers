@@ -1,18 +1,12 @@
 def main is int
 
-    def g is int: a b as int
-        var xx is byte
-        return: a + b
-    var x y is int
-    def h: n as int
-        writeInteger: n
+    def g: a as int, b as ref int
+        b := 1
         exit
-
-    #writeString: "hello world"
-    loop dor:
-        x := g(1,2)
-        if x >=3: continue: dor
-
-    h: 4
+    
+    var x y is int
+    y := 0
+    g: 2, y
+    writeInteger: y
     return: 0
 

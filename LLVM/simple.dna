@@ -1,0 +1,3 @@
+def main
+    var a is int[10]
+    skip

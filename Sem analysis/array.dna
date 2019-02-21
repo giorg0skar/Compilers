@@ -1,0 +1,10 @@
+def main is int
+
+    def g: n as int [5]
+        writeInteger: n[1]
+        exit
+
+    var x is int [5]
+    x[1] := 5
+    g: x
+    return: 0
