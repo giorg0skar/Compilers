@@ -17,6 +17,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Type.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #if defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR >= 4
 #include <llvm/Transforms/Scalar/GVN.h>
@@ -245,6 +246,7 @@ BasicBlock *returnBlock;
 std::map<char *, BasicBlock *> afterLoopMap;
 std::map<char *, BasicBlock *> LoopMap;
 std::vector<BasicBlock *> blockNames;
+int passByReference = 0;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -315,8 +317,8 @@ Type *translateType(Type_h type)
     if (isPointer(type))
     {
         Type_h ty = type->refType;
-        auto ref = translateType(ty);
-        return PointerType::getUnqual(ref);
+        Type *ref = translateType(ty);
+        return PointerType::get(ref, 0);
     }
     return nullptr;
 }
@@ -745,9 +747,9 @@ void ast_sem(ast t)
 			}
 			if ((params->u.eParameter.mode == PASS_BY_REFERENCE) && (temp->branch1->k != TID) 
 				&& (temp->branch1->k != ARR ) && (temp->branch1->k != STRING_LIT))
-				error("parameter passing mode mismatch");
-				params = params->u.eParameter.next;
-				temp = temp->branch2;
+				    error("parameter passing mode mismatch");
+			params = params->u.eParameter.next;
+			temp = temp->branch2;
 		}
 
 		if (temp!=NULL && params==NULL) error("proc call was given too many parameters");
@@ -1319,11 +1321,12 @@ Value *compile_function(ast f)
     current_AR = new_frame;
 
     //iterate through the parameters and push the types in the vector
-    ast params= f->branch1->branch1;
+    ast params = f->branch1->branch1;
     Type *par_type;
     if (params) {
         par_type = translateType(params->type);
-        for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) {
+        for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) 
+        {
             parameters.push_back(par_type);
             frame_fields.push_back(par_type);
         }
@@ -1331,7 +1334,8 @@ Value *compile_function(ast f)
     for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
         params = defs->branch1;
         par_type = translateType(params->type);
-        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) {
+        for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) 
+        {
             parameters.push_back(par_type);
             frame_fields.push_back(par_type);
         }
@@ -1687,7 +1691,6 @@ Value *ast_compile(ast t)
     {
         // Make the new basic block for the loop.
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
-        BasicBlock *PreheaderBB = Builder.GetInsertBlock();
         BasicBlock *LoopBB = BasicBlock::Create(TheContext, "loop", TheFunction);
         BasicBlock *AfterBB = BasicBlock::Create(TheContext, "after_loop", TheFunction);
 
@@ -1738,11 +1741,6 @@ Value *ast_compile(ast t)
         }
         else {
             //otherwise we break the closest loop
-            // iter = afterLoopMap.begin();
-            // while(iter != afterLoopMap.end()) {
-            //     closestLoop = iter;
-            //     iter++;
-            //}
             closestLoop = afterLoopMap.rbegin();
             AfterBlock = closestLoop->second;
         }
@@ -1768,11 +1766,6 @@ Value *ast_compile(ast t)
             }
         }
         else {
-            // iter = LoopMap.begin();
-            // while(iter != LoopMap.end()) {
-            //     closestLoop = iter;
-            //     iter++;
-            // }
             closestLoop = LoopMap.rbegin();
             LoopBlock = closestLoop->second;
         }
@@ -1814,8 +1807,18 @@ Value *ast_compile(ast t)
 
         //if the call has arguments we insert them in the args vector
         if (t->branch1) {
+            Function::arg_iterator arg_it = Callee->arg_begin();
+            if (!isLib) arg_it++;
+            if (arg_it->getType()->isPointerTy() ) passByReference = 1;
+            else passByReference = 0;
+            arg_it++;
             args.push_back(ast_compile(t->branch1));
+
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+                if (arg_it->getType()->isPointerTy() ) passByReference = 1;
+                else passByReference = 0;
+                arg_it++;
+
                 Value *v = ast_compile(temp->branch1);
                 args.push_back(v);
             }
@@ -1843,8 +1846,18 @@ Value *ast_compile(ast t)
 
         //if func call has arguments we push them in the args vector
         if (t->branch1) {
+            Function::arg_iterator arg_it = Callee->arg_begin();
+            if (!isLib) arg_it++;
+            if ( arg_it->getType()->isPointerTy() ) passByReference = 1;
+            else passByReference = 0;
+            arg_it++;
             args.push_back(ast_compile(t->branch1));
+
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
+                if ( arg_it->getType()->isPointerTy() ) passByReference = 1;
+                else passByReference = 0;
+                arg_it++;
+
                 Value *v = ast_compile(temp->branch1);
                 args.push_back(v);
             }
@@ -1866,7 +1879,11 @@ Value *ast_compile(ast t)
         int index = t->offset;
         gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(index)}, "");
         // printf("finished variable %s\n", t->id);
-        return Builder.CreateLoad(gep, t->id);
+        if (passByReference) {
+            passByReference = 0;
+            return gep;
+        }
+        else return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
     {
@@ -2023,12 +2040,15 @@ void declare_library_functions() {
     TheWriteInteger =
         Function::Create(writeInteger_type, Function::ExternalLinkage,
                          "writeInteger", TheModule.get());
+
     // declare void @writeChar(i8)
     FunctionType *writeChar_type = FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i8}, false);
     TheWriteChar = Function::Create(writeChar_type, Function::ExternalLinkage, "writeChar", TheModule.get());
+
     //declare void @writyByte(i8)
     FunctionType *writeByte_type = FunctionType::get(Type::getVoidTy(TheContext), std::vector<Type *>{i8}, false);
     TheWriteByte = Function::Create(writeByte_type, Function::ExternalLinkage, "writeByte", TheModule.get());
+
     // declare void @writeString(i8*)
     FunctionType *writeString_type =
         FunctionType::get(Type::getVoidTy(TheContext),
@@ -2036,6 +2056,7 @@ void declare_library_functions() {
     TheWriteString =
         Function::Create(writeString_type, Function::ExternalLinkage,
                          "writeString", TheModule.get());
+
 
     //declare int @readInteger()
     FunctionType *readInteger_type = FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>(), false);
