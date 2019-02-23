@@ -51,9 +51,6 @@ static ast ast_make(kind k, const char *c, int n, ast l1, ast l2, ast l3, ast l4
     return p;
 }
 
-// ast ast_program(ast l1) {
-//   return ast_make(PROGRAM, "\0", 0, l1, NULL, NULL, NULL, NULL);
-// }
 
 ast ast_func_def(ast header, ast local, ast block)
 {
@@ -151,7 +148,6 @@ ast ast_continue(const char *s)
 
 ast ast_seq(ast l1, ast l2)
 {
-    //if (l2 == NULL) return l1;
     return ast_make(SEQ, "\0", 0, l1, l2, NULL, NULL, NULL);
 }
 
@@ -494,13 +490,12 @@ void ast_sem(ast t)
         char c = t->id[0];
         if (!isalpha(c))
         {
-            strcat(t->id, "\\0");
             error("variable names have to start with a letter. variable is: %s\n", t->id);
         }
         SymbolEntry *e = lookupEntry(t->id, LOOKUP_CURRENT_SCOPE, false);
         if (e != NULL)
         {
-            strcat(t->id, "\\0");
+            //strcat(t->id, "\\0");
             error("there is already a variable with the name: $s\n", t->id);
         }
         return;
@@ -511,19 +506,27 @@ void ast_sem(ast t)
     {
         //assign a value to a variable
         ast_sem(t->branch1);
-        if (isArray(t->branch1->type) || isIArray(t->branch1->type))
-            error("cannot assign a value to an array variable");
+        // if (isArray(t->branch1->type) || isIArray(t->branch1->type))
+        //     error("cannot assign a value to an array variable");
         kind k = t->branch1->k;
         ast_sem(t->branch2);
         //check if types are the same
         if (!equalType(t->branch1->type, t->branch2->type))
         {
+            printf("left hand type is: ");
+            printType(t->branch1->type);
+            printf("\nright hand type is: ");
+            printType(t->branch2->type);
+            printf("\n");
             if (isPointer(t->branch1->type)) {
                 //check if refType of pointer is the same as the right hand value
                 if (!equalType(t->branch1->type->refType,t->branch2->type))
                     error("type mismatch in assigning value to variable");
             }
-            else error("type mismatch in assigning value to variable");
+            else {
+                printf("wrong\n");
+                error("type mismatch in assigning value to variable");
+            }
         }
         if (k == TID)
         {
@@ -654,8 +657,7 @@ void ast_sem(ast t)
 
             t->nesting_diff = currentScope->nestingLevel - l->nestingLevel;
         }
-        time_to_leave = 1;
-        leave_code = BREAKING;
+        
         return;
     }
     case CONT:
@@ -873,6 +875,15 @@ void ast_sem(ast t)
         // strconst = (char *) malloc(sizeof(char)*(len + 1);
         // strcpy(strconst, t->id);
         t->type = typeArray(len + 1, typeChar);
+        SymbolEntry *e = lookupEntry(t->id, LOOKUP_ALL_SCOPES, false);
+        if (e == NULL) {
+            Type_h ctype = typeArray(len + 1, typeChar);
+            e = newConstant(t->id, ctype, t->id);
+        }
+        if (e->entryType == ENTRY_CONSTANT) {
+            t->nesting_diff = currentScope->nestingLevel - e->nestingLevel;
+            t->offset = e->u.eVariable.offset;
+        }
         return;
     }
     case ARR:
@@ -1317,7 +1328,8 @@ Value *compile_function(ast f)
     std::vector<Type *> parameters;
     std::vector<Type *> frame_fields;
 
-    if(!isLibFunction(f->branch1->id)) {
+    int isLib = isLibFunction(f->branch1->id);
+    if(!isLib) {
         parameters.push_back(PointerType::get(current_AR, 0));
     }
     frame_fields.push_back(PointerType::get(current_AR, 0));
@@ -1417,7 +1429,9 @@ Value *compile_function(ast f)
         Builder.CreateStore(element, gep, false);
     }
 
-    paramsIndex.insert(std::pair<Value *, int>(currentAlloca, parameters.size()-1));
+    //we store the highest index of parameters in this frame
+    if (!isLib) paramsIndex.insert(std::pair<Value *, int>(currentAlloca, parameters.size()-1));
+    else paramsIndex.insert(std::pair<Value *, int>(currentAlloca, parameters.size()));
     //we start executing the block of the function
     ast_compile(f->branch3);
 
@@ -1559,6 +1573,7 @@ Value *ast_compile(ast t)
             //     }
             //     arg_it++;
             // }
+            //if indx <= paramsIndex then the array is a parameter and thus it passes by reference
             if (indx <= paramsIndex.find(record)->second) gep = Builder.CreateLoad(gep, "");
 
             for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); ++iter) {
@@ -1567,7 +1582,6 @@ Value *ast_compile(ast t)
         }
         if (isPointer(node->type)) {
             gep = Builder.CreateLoad(gep, "");
-            //gep = Builder.CreateGEP(addr, std::vector<Value *>{c32(0), c32(0)}, "");
         }
 
         Builder.CreateStore(val, gep, false);
@@ -1745,7 +1759,7 @@ Value *ast_compile(ast t)
         std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
         //auto list = & TheFunction->getBasicBlockList();
 
-        if (!strcmp(t->id, "\0")) {
+        if (!(strcmp(t->id, "\0") == 0)) {
             //if break is given a loop name we break out of that specific loop.
             //name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
             iter = afterLoopMap.find(t->id);
@@ -1772,7 +1786,7 @@ Value *ast_compile(ast t)
         std::map<char *, BasicBlock*>::iterator iter;
         std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
 
-        if (!strcmp(t->id,"\0")) {
+        if (!(strcmp(t->id,"\0") == 0)) {
             //continue is given a specific name
             iter = LoopMap.find(t->id);
             while(iter != LoopMap.end()) {
@@ -1838,8 +1852,7 @@ Value *ast_compile(ast t)
                 args.push_back(v);
             }
         }
-        // if (!isLib) Builder.CreateCall(Callee, args, "");
-        // else Builder.CreateCall(Callee, args, "");
+        
         Builder.CreateCall(Callee, args, "");
         return nullptr;
     }
@@ -1927,7 +1940,22 @@ Value *ast_compile(ast t)
     }
     case STRING_LIT:
     {
-        return nullptr;
+        char *str = (char *) malloc(sizeof(char)*(strlen(t->id) + 1) );
+        strcpy(str, t->id);
+        std::vector<Constant *> str_vector;
+        for(int i=0; i < strlen(str); i++) {
+            str_vector.push_back(c8(str[i]));
+        }
+        str_vector.push_back(c8('\0'));
+
+        //string literals are arrays of typeChar
+        Type_h ty = t->type;
+        Type *ref = translateType(ty->refType);
+        int size = ty->size;
+        ArrayType *str_type = ArrayType::get(ref, size);
+
+        Constant *const_str = ConstantArray::get(str_type, str_vector);
+        return const_str;
     }
     case INTCONST:
     {
@@ -1971,7 +1999,7 @@ Value *ast_compile(ast t)
     case NOT:
     {
         //Boolean not, and, or cases (!, &&, ||)
-        Value *l = ast_compile(t->branch1);
+        Value *l = ast_compile(t->branch2);
         return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
     }
     case AND:
@@ -2096,6 +2124,7 @@ void declare_library_functions() {
     //declare byte @shrink(i32)
     FunctionType *shrink_type = FunctionType::get(Type::getInt8Ty(TheContext), std::vector<Type *>{i32}, false);
     shrink = Function::Create(shrink_type, Function::ExternalLinkage, "shrink", TheModule.get());
+
 
     //declare int @strlen(*i8)
     FunctionType *strlen_type = FunctionType::get(Type::getInt32Ty(TheContext), std::vector<Type *>{PointerType::get(i8, 0)}, false);

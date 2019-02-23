@@ -4,9 +4,9 @@ def main is int
         b[1] := 2 + a
         exit
     
-    var x y is int[10]
-    y[1] := 3
-    gr: 2, y
-    writeInteger: y[1]
+    var x y is byte[5]
+    y := "door"
+    #writeInteger: y[1]
+    writeString: y
     return: 0
 

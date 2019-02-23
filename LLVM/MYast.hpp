@@ -5,7 +5,7 @@ extern "C"{
   #include "symbol.h"
 }
 typedef enum {
-  PROGRAM, HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF,
+  HEADER, HEADER_PART, FUNC_DEF, FPAR_DEF,
   VAR, ID, SKIP, BREAK, CONT, LOOP, SEQ, IF, IF_ELSE, BLOCK,
   PLUS, MINUS, TIMES, DIV, MOD,
   NOT, AND, OR, EQ, NEQ, LT, GT, LE, GE,
