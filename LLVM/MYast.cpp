@@ -246,6 +246,7 @@ BasicBlock *returnBlock;
 std::map<char *, BasicBlock *> afterLoopMap;
 std::map<char *, BasicBlock *> LoopMap;
 std::vector<BasicBlock *> blockNames;
+std::map<Value *, int> paramsIndex;
 int passByReference = 0;
 
 // Useful LLVM types.
@@ -284,6 +285,7 @@ Type *translateType(Type_h type)
         //array_sizes.push_back(ty->size);
 
         auto base = translateType(ty);
+        std::reverse(array_sizes.begin(), array_sizes.end());
         for (auto size : array_sizes)
         {
             base = ArrayType::get(base, size);
@@ -306,6 +308,7 @@ Type *translateType(Type_h type)
         //array_sizes.push_back(ty->size);
 
         auto base = translateType(ty);
+        std::reverse(array_sizes.begin(), array_sizes.end());
         for (auto size : array_sizes)
         {
             base = ArrayType::get(base, size);
@@ -1325,6 +1328,7 @@ Value *compile_function(ast f)
     Type *par_type;
     if (params) {
         par_type = translateType(params->type);
+        if (par_type->isArrayTy()) par_type = PointerType::get(par_type, 0);
         for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) 
         {
             parameters.push_back(par_type);
@@ -1334,6 +1338,7 @@ Value *compile_function(ast f)
     for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
         params = defs->branch1;
         par_type = translateType(params->type);
+        if (par_type->isArrayTy()) par_type = PointerType::get(par_type, 0);
         for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) 
         {
             parameters.push_back(par_type);
@@ -1411,6 +1416,8 @@ Value *compile_function(ast f)
         element = & (*iter);
         Builder.CreateStore(element, gep, false);
     }
+
+    paramsIndex.insert(std::pair<Value *, int>(currentAlloca, parameters.size()-1));
     //we start executing the block of the function
     ast_compile(f->branch3);
 
@@ -1522,9 +1529,6 @@ Value *ast_compile(ast t)
     {
         Value *val = ast_compile(t->branch2);
         //printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
-        // if (t->branch1->k) {
-        //     index = t->branch1->offset;
-        // }
         ast node;
         std::vector<Value *> idxlist;
         //in case left side is access to an array element, we iterate until we find the base array node
@@ -1544,8 +1548,19 @@ Value *ast_compile(ast t)
 
         gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(indx)}, "");
         if (isArray(node->type)) {
-            //Value *addr = Builder.CreateLoad(gep, "");
-            //gep = addr;
+            // Function *TheFunction = Builder.GetInsertBlock()->getParent();
+            // Function::arg_iterator arg_it = TheFunction->arg_begin();
+            // while(arg_it != TheFunction->arg_end()) {
+
+            //     if (strcmp(arg_it->getName().data(), node->id) == 0) {
+            //         //array is function argument. that means we need the array's address
+            //         gep = Builder.CreateLoad(gep, "");
+            //         break;
+            //     }
+            //     arg_it++;
+            // }
+            if (indx <= paramsIndex.find(record)->second) gep = Builder.CreateLoad(gep, "");
+
             for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); ++iter) {
                 gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), *iter}, "");
             }
@@ -1809,13 +1824,13 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            if (arg_it->getType()->isPointerTy() ) passByReference = 1;
+            if (arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
             else passByReference = 0;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                if (arg_it->getType()->isPointerTy() ) passByReference = 1;
+                if (arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
@@ -1848,13 +1863,13 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            if ( arg_it->getType()->isPointerTy() ) passByReference = 1;
+            if ( arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
             else passByReference = 0;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                if ( arg_it->getType()->isPointerTy() ) passByReference = 1;
+                if ( arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
