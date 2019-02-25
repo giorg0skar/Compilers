@@ -178,8 +178,7 @@ ast ast_int_const(int num)
 
 ast ast_char_const(char c)
 {
-    char name[2];
-    name[0] = c;
+    char name[] = {c, '\0'};
     return ast_make(CHARCONST, name, 0, NULL, NULL, NULL, NULL, NULL);
 }
 
@@ -311,7 +310,7 @@ Type *translateType(Type_h type)
         }
         //std::cout << base << std::endl;
         //printType(type);
-        base = PointerType::get(base, 0);
+        base = ArrayType::get(base, 0);
         return base;
     }
     if (isPointer(type))
@@ -337,11 +336,26 @@ int time_to_leave = 0;
 //if we're in a condition we convert \x01 and \0 chars to true and false respectively
 void checkForBool(ast tr)
 {
-    if (equalType(tr->type, typeChar))
-        if (strcmp(tr->id, "\0") == 0 || strcmp(tr->id, "\x01") == 0)
+    if (equalType(tr->type, typeChar)) {
+        if (strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
+        if ((tr->id)[0] == '\0') tr->type = typeBoolean;
+        if (tr->num == 1) {
             tr->type = typeBoolean;
+        }
+    }
+    if (equalType(tr->type, typeInteger)) {
+        if (tr->num == 0 || tr->num == 1) tr->type = typeBoolean;
+    }
     return;
 }
+
+// int isBoolean(ast tr) {
+//     if (equalType(tr->type, typeChar)) {
+//         if (strcmp(tr->id, "\x01") == 0) return 1;
+//         if ((tr->id)[0] == '\0') return 1;
+//     }
+//     return 0;
+// }
 
 void ast_sem(ast t)
 {
@@ -514,18 +528,34 @@ void ast_sem(ast t)
         //check if types are the same
         if (!equalType(t->branch1->type, t->branch2->type))
         {
-            printf("left hand type is: ");
-            printType(t->branch1->type);
-            printf("\nright hand type is: ");
-            printType(t->branch2->type);
-            printf("\n");
             if (isPointer(t->branch1->type)) {
                 //check if refType of pointer is the same as the right hand value
-                if (!equalType(t->branch1->type->refType,t->branch2->type))
-                    error("type mismatch in assigning value to variable");
+                if(isPointer(t->branch2->type)) {
+                    if (!equalType(t->branch1->type->refType,t->branch2->type->refType))
+                        error("type mismatch in assigning value to variable");
+                }
+                else {
+                    if (!equalType(t->branch1->type->refType,t->branch2->type))
+                        error("type mismatch in assigning value to variable");
+                }
+            }
+            else if (isPointer(t->branch2->type)) {
+                //check if refType of pointer is the same as the right hand value
+                if(isPointer(t->branch1->type)) {
+                    if (!equalType(t->branch1->type->refType,t->branch2->type->refType))
+                        error("type mismatch in assigning value to variable");
+                }
+                else {
+                    if (!equalType(t->branch2->type->refType,t->branch1->type))
+                        error("type mismatch in assigning value to variable");
+                }
             }
             else {
-                printf("wrong\n");
+                printf("left hand type is: ");
+                printType(t->branch1->type);
+                printf("\nright hand type is: ");
+                printType(t->branch2->type);
+                printf("\n");
                 error("type mismatch in assigning value to variable");
             }
         }
@@ -541,6 +571,13 @@ void ast_sem(ast t)
                 error("type mismatch in assignment");
             t->nesting_diff = currentScope->nestingLevel - v->nestingLevel;
             t->offset = v->u.eVariable.offset;
+
+            // if (equalType(t->branch2->type, typeChar)) {
+            //     if((t->branch2->id)[0]=='\0' || (t->branch2->id)[0]=='\x01') {
+            //         if (v->entryType == ENTRY_VARIABLE) v->u.eVariable.type = typeBoolean;
+            //         if (v->entryType == ENTRY_PARAMETER) v->u.eParameter.type = typeBoolean;
+            //     }
+            // }
         }
         else if (k == ARR)
         {
@@ -551,6 +588,13 @@ void ast_sem(ast t)
             SymbolEntry *v = lookupEntry(temp->id, LOOKUP_ALL_SCOPES, true);
             t->nesting_diff = currentScope->nestingLevel - v->nestingLevel;
             t->offset = v->u.eVariable.offset;
+
+            // if (equalType(t->branch2->type, typeChar)) {
+            //     if((t->branch2->id)[0]=='\0' || (t->branch2->id)[0]=='\x01') {
+            //         if (v->entryType == ENTRY_VARIABLE) v->u.eVariable.type = typeBoolean;
+            //         if (v->entryType == ENTRY_PARAMETER) v->u.eParameter.type = typeBoolean;
+            //     }
+            // }
         }
         return;
     }
@@ -1037,8 +1081,11 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch2);
         checkForBool(t->branch2);
-        if (!equalType(t->branch2->type, typeBoolean))
-            error("type mismatch in not operation");
+        // if (!equalType(t->branch2->type, typeBoolean)) {
+        //     printType(t->branch2->type);
+        //     printf(" %s\n", t->branch2->id);
+        //     error("type mismatch in not operation");
+        // }
         t->type = typeBoolean;
         return;
     }
@@ -1048,8 +1095,8 @@ void ast_sem(ast t)
         checkForBool(t->branch1);
         ast_sem(t->branch2);
         checkForBool(t->branch2);
-        if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
-            error("type mismatch in and operator");
+        // if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
+        //     error("type mismatch in and operator");
         t->type = typeBoolean;
         return;
     }
@@ -1059,8 +1106,8 @@ void ast_sem(ast t)
         checkForBool(t->branch1);
         ast_sem(t->branch2);
         checkForBool(t->branch2);
-        if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
-            error("type mismatch in or operator");
+        // if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
+        //     error("type mismatch in or operator");
         t->type = typeBoolean;
         return;
     }
@@ -1528,6 +1575,7 @@ Value *ast_compile(ast t)
     }
     case ID:
     {
+        //CASE ALREADY COVERED
         return nullptr;
     }
     case SKIP:
@@ -1935,6 +1983,9 @@ Value *ast_compile(ast t)
         }
         
         Value *array_value = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
+        //if offset <= paramsIndex then the array is a parameter and thus it passes by reference. so we load it's location
+        if (offset <= paramsIndex.find(record)->second) array_value = Builder.CreateLoad(array_value, "");
+
         for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
             array_value = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
         }
