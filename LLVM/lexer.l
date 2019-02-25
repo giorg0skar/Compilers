@@ -204,7 +204,7 @@ Char {singlequote}{1}.{singlequote}{1}
 
 "\""				{ BEGIN(STRING); }
 <STRING>\n			{ yyerror("string cannot span over a single line"); }
-<STRING>[^"\n]*		{ return T_string; }
+<STRING>[^"\n]*		{ yylval.s = strdup(yytext); return T_string; }
 <STRING>\"			{ BEGIN(INITIAL); isNextEOF(); }
 
 

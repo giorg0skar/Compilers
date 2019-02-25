@@ -1,12 +1,9 @@
 def main is int
 
-    def gr: a as int, b as int[10]
-        b[1] := 2 + a
-        exit
-    
     var x y is byte[5]
-    y := "door"
+    var z is byte
+    #y := "door"
     #writeInteger: y[1]
-    writeString: y
+    writeString: "door"
     return: 0
 

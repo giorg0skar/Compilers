@@ -311,6 +311,7 @@ Type *translateType(Type_h type)
         }
         //std::cout << base << std::endl;
         //printType(type);
+        base = PointerType::get(base, 0);
         return base;
     }
     if (isPointer(type))
@@ -1436,12 +1437,6 @@ Value *compile_function(ast f)
     ast_compile(f->branch3);
 
     //if we encountered no return instruction, the function has void return type
-    // if (equalType(f->branch1->type, typeVoid)) {
-    //     BasicBlock *RetBlock = BasicBlock::Create(TheContext, "return", NewFunction);
-    //     Builder.CreateBr(RetBlock);
-    //     Builder.SetInsertPoint(RetBlock);
-    //     Builder.CreateRetVoid();
-    // }
     // Function *endFunction = Builder.GetInsertBlock()->getParent();
     Builder.CreateBr(returnBlock);
     Builder.SetInsertPoint(returnBlock);
@@ -1838,13 +1833,15 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            if (arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
+            Type *real_param_type = translateType(t->branch1->type);
+            if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                if (arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
+                real_param_type = translateType(temp->branch1->type);
+                if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
@@ -1876,13 +1873,15 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            if ( arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
+            Type *real_param_type = translateType(t->branch1->type);
+            if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                if ( arg_it->getType()->isPointerTy() || arg_it->getType()->isArrayTy()) passByReference = 1;
+                real_param_type = translateType(temp->branch1->type);
+                if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
@@ -1895,8 +1894,7 @@ Value *ast_compile(ast t)
     }
     case TID:
     {
-        //we search the AR where the variable/param was defined and load it's value
-        //printf("accessing variable %s\n", t->id);
+        ///we search the AR where the variable/param was defined and load it's value
         int frame_diff = t->nesting_diff;
         Value *record = currentAlloca;
         Value *gep;
@@ -1915,6 +1913,8 @@ Value *ast_compile(ast t)
     }
     case ARR:
     {
+        int passMode = passByReference;
+        passByReference = 0;
         Value *val = ast_compile(t->branch2);
         std::vector<Value *> idxlist;
         idxlist.push_back(val);
@@ -1923,6 +1923,8 @@ Value *ast_compile(ast t)
             //loop until we reach the base node. we store the index for each array dimension
             idxlist.push_back(ast_compile(temp->branch2));
         }
+
+        passByReference = passMode;
         int frame_diff = temp->nesting_diff;
         int offset = temp->offset;
         Value *record = currentAlloca;
@@ -1954,8 +1956,10 @@ Value *ast_compile(ast t)
         int size = ty->size;
         ArrayType *str_type = ArrayType::get(ref, size);
 
-        Constant *const_str = ConstantArray::get(str_type, str_vector);
-        return const_str;
+        GlobalVariable *TheString;
+        TheString = new GlobalVariable(*TheModule, str_type, true, GlobalValue::PrivateLinkage, ConstantArray::get(str_type, str_vector));
+        passByReference = 0;
+        return Builder.CreateGEP(TheString, std::vector<Value *>{c32(0),c32(0)}, "");
     }
     case INTCONST:
     {
