@@ -243,6 +243,7 @@ std::map<char *, BasicBlock *> LoopMap;
 std::vector<BasicBlock *> blockNames;
 std::map<Value *, int> paramsIndex;
 int passByReference = 0;
+int loadByReference = 0;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -1584,12 +1585,16 @@ Value *ast_compile(ast t)
     }
     case ASSIGN:
     {
+        if (isPointer(t->branch2->type)) loadByReference = 1;
+        else loadByReference = 0;
         Value *val = ast_compile(t->branch2);
         //printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
         ast node;
         std::vector<Value *> idxlist;
         //in case left side is access to an array element, we iterate until we find the base array node
         for(node=t->branch1; node->branch1 != NULL; node=node->branch1) {
+            if (isPointer(node->branch2->type)) loadByReference = 1;
+            else loadByReference = 0;
             Value *i = ast_compile(node->branch2);
             idxlist.push_back(i);
         }
@@ -1788,6 +1793,13 @@ Value *ast_compile(ast t)
         ast_compile(t->branch1);
         //loop ends only when instructions break, exit are encountered inside
 
+        //we remove the loop and AfterLoop blocks from the map
+        std::map<char *, BasicBlock*>::iterator map_it;
+        for(auto it=afterLoopMap.begin(); it !=afterLoopMap.end(); it++) map_it = it;
+        afterLoopMap.erase(map_it);
+        for(auto it=LoopMap.begin(); it !=LoopMap.end(); it++) map_it = it;
+        LoopMap.erase(map_it);
+
         Builder.CreateBr(LoopBB);
         //end of loop
         Builder.SetInsertPoint(AfterBB);
@@ -1802,7 +1814,7 @@ Value *ast_compile(ast t)
         std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
         //auto list = & TheFunction->getBasicBlockList();
 
-        if (!(strcmp(t->id, "\0") == 0)) {
+        if ((t->id)[0] != '\0') {
             //if break is given a loop name we break out of that specific loop.
             //name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
             iter = afterLoopMap.find(t->id);
@@ -1957,17 +1969,25 @@ Value *ast_compile(ast t)
             Type *ty = translateType(t->type);
             if (ty->isArrayTy() ) {
                 //if an array is to be passed by ref, we pass a pointer to it's first element
-                Type *ref_type = translateType(t->type->refType);
-                gep = Builder.CreateInBoundsGEP(ref_type, gep, c32(0), "");
+                //Type *ref_type = translateType(t->type->refType);
+                //gep = Builder.CreateInBoundsGEP(ref_type, gep, c32(0), "");
+                gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), c32(0)}, "");
             }
             passByReference = 0;
             return gep;
+        }
+        else if (loadByReference) {
+            Value *ptr = Builder.CreateLoad(gep, "");
+            loadByReference = 0;
+            return Builder.CreateLoad(ptr, t->id);
         }
         else return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
     {
         int passMode = passByReference;
+        int loadMode = loadByReference;
+        loadByReference = 0;
         passByReference = 0;
         Value *val = ast_compile(t->branch2);
         std::vector<Value *> idxlist;
@@ -1979,6 +1999,7 @@ Value *ast_compile(ast t)
         }
 
         passByReference = passMode;
+        loadByReference = loadMode;
         int frame_diff = temp->nesting_diff;
         int offset = temp->offset;
         Value *record = currentAlloca;
@@ -2038,6 +2059,7 @@ Value *ast_compile(ast t)
         GlobalVariable *TheString;
         TheString = new GlobalVariable(*TheModule, str_type, true, GlobalValue::PrivateLinkage, ConstantArray::get(str_type, str_vector));
         passByReference = 0;
+        //loadByReference = 0;
         return Builder.CreateGEP(TheString, std::vector<Value *>{c32(0),c32(0)}, "");
     }
     case INTCONST:
@@ -2083,7 +2105,7 @@ Value *ast_compile(ast t)
     {
         //Boolean not, and, or cases (!, &&, ||)
         Value *l = ast_compile(t->branch2);
-        return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
+        return Builder.CreateICmpEQ(l, c8(0), "cond_nottmp");
     }
     case AND:
     {
@@ -2097,10 +2119,13 @@ Value *ast_compile(ast t)
     }
     case OR:
     {
-        //UNFINISHED
         Value *l = ast_compile(t->branch1);
         Value *r = ast_compile(t->branch2);
-        return nullptr;
+        bool res1 = cast<bool>(l);
+        bool res2 = cast<bool>(r);
+        bool result = l || r;
+        Value *val = cast<Value *>(result);
+        return Builder.CreateICmpEQ(val, c32(0), "cond_ortmp");
     }
     case EQ:
     {
