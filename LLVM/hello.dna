@@ -3,7 +3,8 @@ def main is int
     var x y is byte[5]
     var z is byte
     #y := "door"
-    #writeInteger: y[1]
+    y[1] := 'a'
+    writeChar: y[1]
     writeString: "door"
     return: 0
 

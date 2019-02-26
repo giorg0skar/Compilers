@@ -310,7 +310,7 @@ Type *translateType(Type_h type)
         }
         //std::cout << base << std::endl;
         //printType(type);
-        base = ArrayType::get(base, 0);
+        base = PointerType::get(base, 0);
         return base;
     }
     if (isPointer(type))
@@ -1954,6 +1954,12 @@ Value *ast_compile(ast t)
         gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(index)}, "");
         // printf("finished variable %s\n", t->id);
         if (passByReference) {
+            Type *ty = translateType(t->type);
+            if (ty->isArrayTy() ) {
+                //if an array is to be passed by ref, we pass a pointer to it's first element
+                Type *ref_type = translateType(t->type->refType);
+                gep = Builder.CreateInBoundsGEP(ref_type, gep, c32(0), "");
+            }
             passByReference = 0;
             return gep;
         }
@@ -1982,14 +1988,36 @@ Value *ast_compile(ast t)
             record = Builder.CreateLoad(gep, "previous");
         }
         
-        Value *array_value = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
-        //if offset <= paramsIndex then the array is a parameter and thus it passes by reference. so we load it's location
-        if (offset <= paramsIndex.find(record)->second) array_value = Builder.CreateLoad(array_value, "");
+        gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
+        //Value *ptr = gep;
+        Value *array_value = gep;
 
-        for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
-            array_value = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
+        //TEMPORARY FOR TESTING
+        Type *arrType = translateType(temp->type->refType);
+        auto iter = idxlist.rbegin();
+
+        if (offset <= paramsIndex.find(record)->second) {
+            //if offset <= paramsIndex then the array is a parameter and thus it passes by reference. so we load it's location
+            array_value = Builder.CreateLoad(gep, "");
+            gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+            array_value = Builder.CreateLoad(gep, "");
         }
-        return Builder.CreateLoad(array_value, "");
+        else {
+            //array is not a parameter
+            gep = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
+            array_value = Builder.CreateLoad(gep, "");
+        }
+        // for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
+        //     gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+        //     array_value = Builder.CreateLoad(gep, "");
+        // }
+        if (passByReference) {
+            passByReference = 0;
+            return gep;
+        }
+            
+        //return Builder.CreateLoad(array_value, "");
+        return array_value;
     }
     case STRING_LIT:
     {
@@ -2069,6 +2097,7 @@ Value *ast_compile(ast t)
     }
     case OR:
     {
+        //UNFINISHED
         Value *l = ast_compile(t->branch1);
         Value *r = ast_compile(t->branch2);
         return nullptr;
