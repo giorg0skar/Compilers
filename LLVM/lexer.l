@@ -197,14 +197,14 @@ Char {singlequote}{1}.{singlequote}{1}
 
 "(*"				{ commentcounter = 1; BEGIN(MLCOMMENT); }
 <MLCOMMENT>"(*"		{ commentcounter++; }
-<MLCOMMENT>"*)"		{ if(--commentcounter==0) {BEGIN(INITIAL); isNextEOF();} }
+<MLCOMMENT>"*)"		{ if(--commentcounter == 0) {BEGIN(INITIAL); isNextEOF();} }
 <MLCOMMENT>\n		{ linenumber++; spacecounter=0;}
 <MLCOMMENT>"*"		{ /* nothing */ }
 <MLCOMMENT>[^*\n(]*	{ /* nothing */ }
 
 "\""				{ BEGIN(STRING); }
-<STRING>\n			{ yyerror("string cannot span over a single line"); }
-<STRING>[^"\n]*		{ yylval.s = strdup(yytext); return T_string; }
+ /*<STRING>\\			{  } */
+<STRING>[^"]*		{ yylval.s = strdup(yytext); return T_string; }
 <STRING>\"			{ BEGIN(INITIAL); isNextEOF(); }
 
 

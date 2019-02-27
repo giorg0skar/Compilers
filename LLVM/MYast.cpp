@@ -1340,6 +1340,20 @@ void set_lib_functions() {
 
 //---------------------end of sem analysis----------------------------
 
+char makeEscapeChar(char c) {
+    switch (c)
+    {
+        case '\\':
+            return '\\';
+        case 'n':
+            return '\n';
+        case '0':
+            return '\0';
+        default:
+            break;
+    }
+}
+
 int isLibFunction(char *name) {
     if (strcmp(name,"writeInteger") == 0) return 1;
     if (strcmp(name,"writeByte") == 0) return 1;
@@ -1795,17 +1809,19 @@ Value *ast_compile(ast t)
 
         //we remove the Loop and AfterLoop blocks from the map
         std::multimap<char *, BasicBlock*>::iterator map_it;
-        // if ((t->id)[0] != '\0') {
-        //     auto it = afterLoopMap.find(name);
-        //     afterLoopMap.erase(it);
-        //     map_it = LoopMap.find(name);
-        //     LoopMap.erase(map_it);
-        //     //free(name);
-        // }
-        for(auto it=afterLoopMap.begin(); it !=afterLoopMap.end(); it++) map_it = it;
-        afterLoopMap.erase(map_it);
-        for(auto it=LoopMap.begin(); it !=LoopMap.end(); it++) map_it = it;
-        LoopMap.erase(map_it);
+        if ((t->id)[0] != '\0') {
+            for(auto it = afterLoopMap.find(name); strcmp(it->first,name)==0; it++) map_it = it;
+            afterLoopMap.erase(map_it, afterLoopMap.end());
+            for(auto it=LoopMap.find(name); strcmp(it->first,name)==0; it++) map_it = it;
+            LoopMap.erase(map_it, LoopMap.end());
+            //free(name);
+        }
+        else {
+            for(auto it=afterLoopMap.begin(); it !=afterLoopMap.end(); it++) map_it = it;
+            afterLoopMap.erase(map_it);
+            for(auto it=LoopMap.begin(); it !=LoopMap.end(); it++) map_it = it;
+            LoopMap.erase(map_it);
+        }
 
         Builder.CreateBr(LoopBB);
         //end of loop
@@ -2050,11 +2066,20 @@ Value *ast_compile(ast t)
     }
     case STRING_LIT:
     {
+        //printf("the string is: %s\n", t->id);
+        printf("len is %d\n", strlen(t->id));
         char *str = (char *) malloc(sizeof(char)*(strlen(t->id) + 1) );
         strcpy(str, t->id);
         std::vector<Constant *> str_vector;
+        int escape_char = 0;
         for(int i=0; i < strlen(str); i++) {
-            str_vector.push_back(c8(str[i]));
+            char c = str[i];
+            if (c == '\\' && escape_char==0) escape_char = 1;
+            else if (escape_char) {
+                c = makeEscapeChar(c);
+                str_vector.push_back(c8(c));
+            }
+            else str_vector.push_back(c8(str[i]));
         }
         str_vector.push_back(c8('\0'));
 
@@ -2068,7 +2093,7 @@ Value *ast_compile(ast t)
         TheString = new GlobalVariable(*TheModule, str_type, true, GlobalValue::PrivateLinkage, ConstantArray::get(str_type, str_vector));
         passByReference = 0;
         //loadByReference = 0;
-        return Builder.CreateGEP(TheString, std::vector<Value *>{c32(0),c32(0)}, "");
+        return Builder.CreateGEP(TheString, std::vector<Value *>{c32(0), c32(0)}, "");
     }
     case INTCONST:
     {
