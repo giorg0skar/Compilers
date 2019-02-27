@@ -238,8 +238,8 @@ StructType *current_AR = NULL;
 AllocaInst *currentAlloca = NULL;
 AllocaInst *retAlloca;
 BasicBlock *returnBlock;
-std::map<char *, BasicBlock *> afterLoopMap;
-std::map<char *, BasicBlock *> LoopMap;
+std::multimap<char *, BasicBlock *> afterLoopMap;
+std::multimap<char *, BasicBlock *> LoopMap;
 std::vector<BasicBlock *> blockNames;
 std::map<Value *, int> paramsIndex;
 int passByReference = 0;
@@ -265,6 +265,8 @@ Type *translateType(Type_h type)
     if (equalType(type, typeInteger))
         return i32;
     if (equalType(type, typeChar))
+        return i8;
+    if (equalType(type, typeBoolean))
         return i8;
     if (equalType(type, typeVoid))
         return Type::getVoidTy(TheContext);
@@ -1677,32 +1679,33 @@ Value *ast_compile(ast t)
 
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
+        BasicBlock *EndifBB = BasicBlock::Create(TheContext, "endif", TheFunction);
         BasicBlock *NextBB;
         if (t->branch3 != NULL) NextBB = BasicBlock::Create(TheContext, "elif", TheFunction);
-        else NextBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+        else NextBB = EndifBB;
+
         Builder.CreateCondBr(cond, InsideBB, NextBB);
         Builder.SetInsertPoint(InsideBB);
         //we execute the block inside if
         ast_compile(t->branch2);
 
-        Builder.CreateBr(NextBB);
+        Builder.CreateBr(EndifBB);
         Builder.SetInsertPoint(NextBB);
-        //we execute all elif nodes
-        //ast_compile(t->branch3);
 
-        for(ast elif_node=t->branch3; elif_node!=NULL; elif_node=elif_node->branch3) {
+        //we execute all elif nodes
+        for(ast elif_node=t->branch3; elif_node!=NULL; elif_node = elif_node->branch3) {
             Value *val = ast_compile(elif_node->branch1);
             Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
             Function *TheFunction = Builder.GetInsertBlock()->getParent();
             BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction);
             BasicBlock *NextElifBB;
             if (elif_node->branch3 != NULL) NextElifBB = BasicBlock::Create(TheContext, "next_elif", TheFunction);
-            else                            NextElifBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+            else                            NextElifBB = EndifBB;
             Builder.CreateCondBr(cond1, InElifBB, NextElifBB);
             Builder.SetInsertPoint(InElifBB);
             ast_compile(elif_node->branch2);
 
-            Builder.CreateBr(NextElifBB);
+            Builder.CreateBr(EndifBB);
             Builder.SetInsertPoint(NextElifBB);
         }
 
@@ -1723,45 +1726,42 @@ Value *ast_compile(ast t)
         
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *InsideBB = BasicBlock::Create(TheContext, "then", TheFunction);
+        BasicBlock *EndifBB = BasicBlock::Create(TheContext, "endif", TheFunction);
+        BasicBlock *ElseBB =  BasicBlock::Create(TheContext, "else", TheFunction);
         BasicBlock *NextBB;
         if (t->branch3 != NULL) NextBB = BasicBlock::Create(TheContext, "elif", TheFunction);
-        else NextBB = BasicBlock::Create(TheContext, "else", TheFunction);
+        else NextBB = ElseBB;
 
         Builder.CreateCondBr(cond, InsideBB, NextBB);
         Builder.SetInsertPoint(InsideBB);
         //we execute the block inside 'if'
         ast_compile(t->branch2);
-
-        //BasicBlock *BB = Builder.GetInsertBlock();
         
-        Builder.CreateBr(NextBB);
+        Builder.CreateBr(EndifBB);
         Builder.SetInsertPoint(NextBB);
+
         //we execute all elif nodes
-        //ast_compile(t->branch3);
-        ast elif_node;
-        for(elif_node=t->branch3; elif_node!=NULL; elif_node=elif_node->branch3) {
+        for(ast elif_node=t->branch3; elif_node!=NULL; elif_node = elif_node->branch3) {
             Value *val = ast_compile(elif_node->branch1);
             Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
             Function *TheFunction1 = Builder.GetInsertBlock()->getParent();
             BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction1);
             BasicBlock *NextElifBB;
             if (elif_node->branch3 != NULL) NextElifBB = BasicBlock::Create(TheContext, "next_elif", TheFunction1);
-            else                            NextElifBB = BasicBlock::Create(TheContext, "else", TheFunction1);
+            else                            NextElifBB = ElseBB;
             Builder.CreateCondBr(cond1, InElifBB, NextElifBB);
             Builder.SetInsertPoint(InElifBB);
             ast_compile(elif_node->branch2);
 
-            Builder.CreateBr(NextElifBB);
+            Builder.CreateBr(EndifBB);
             Builder.SetInsertPoint(NextElifBB);
         }
 
         //we execute the 'else' block
         ast_compile(t->branch4);
-        TheFunction = Builder.GetInsertBlock()->getParent();
-        BasicBlock *AfterBB = BasicBlock::Create(TheContext, "endif", TheFunction);
 
-        Builder.CreateBr(AfterBB);
-        Builder.SetInsertPoint(AfterBB);
+        Builder.CreateBr(EndifBB);
+        Builder.SetInsertPoint(EndifBB);
         return nullptr;
     }
     case LOOP:
@@ -1773,7 +1773,7 @@ Value *ast_compile(ast t)
 
         //if the loop has a name we store it
         char *name;
-        if (!strcmp(t->id, "\0")) {
+        if ((t->id)[0] != '\0') {
             name = (char *) malloc((strlen(t->id)+1)*sizeof(char));
             strcpy(name, t->id);
             afterLoopMap.insert(std::pair<char *, BasicBlock*>(name, AfterBB));
@@ -1793,8 +1793,15 @@ Value *ast_compile(ast t)
         ast_compile(t->branch1);
         //loop ends only when instructions break, exit are encountered inside
 
-        //we remove the loop and AfterLoop blocks from the map
-        std::map<char *, BasicBlock*>::iterator map_it;
+        //we remove the Loop and AfterLoop blocks from the map
+        std::multimap<char *, BasicBlock*>::iterator map_it;
+        // if ((t->id)[0] != '\0') {
+        //     auto it = afterLoopMap.find(name);
+        //     afterLoopMap.erase(it);
+        //     map_it = LoopMap.find(name);
+        //     LoopMap.erase(map_it);
+        //     //free(name);
+        // }
         for(auto it=afterLoopMap.begin(); it !=afterLoopMap.end(); it++) map_it = it;
         afterLoopMap.erase(map_it);
         for(auto it=LoopMap.begin(); it !=LoopMap.end(); it++) map_it = it;
@@ -1810,8 +1817,8 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *AfterBlock;
         BasicBlock *BreakBlock = BasicBlock::Create(TheContext, "break", TheFunction);
-        std::map<char *, BasicBlock*>::iterator iter;
-        std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
+        std::multimap<char *, BasicBlock*>::iterator iter;
+        std::multimap<char *, BasicBlock*>::reverse_iterator closestLoop;
         //auto list = & TheFunction->getBasicBlockList();
 
         if ((t->id)[0] != '\0') {
@@ -1826,7 +1833,8 @@ Value *ast_compile(ast t)
         else {
             //otherwise we break the closest loop
             closestLoop = afterLoopMap.rbegin();
-            AfterBlock = closestLoop->second;
+            if (closestLoop != afterLoopMap.rend()) AfterBlock = closestLoop->second;
+            else printf("shouldn't be empty\n");
         }
 
         Builder.CreateBr(AfterBlock);
@@ -1838,10 +1846,10 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *LoopBlock;
         BasicBlock *ContBlock = BasicBlock::Create(TheContext, "cont", TheFunction);
-        std::map<char *, BasicBlock*>::iterator iter;
-        std::map<char *, BasicBlock*>::reverse_iterator closestLoop;
+        std::multimap<char *, BasicBlock*>::iterator iter;
+        std::multimap<char *, BasicBlock*>::reverse_iterator closestLoop;
 
-        if (!(strcmp(t->id,"\0") == 0)) {
+        if ((t->id)[0] != '\0') {
             //continue is given a specific name
             iter = LoopMap.find(t->id);
             while(iter != LoopMap.end()) {
