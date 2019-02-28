@@ -80,7 +80,7 @@ singlequote \'
 doublequote \"
 asciichar \x[0-9a-fA-F][0-9a-fA-F]
 Char {singlequote}{1}.{singlequote}{1}
-EscapeChar {singlequote}{1}\[ntr0]{singlequote}{1}
+EscapeChar {singlequote}{1}"\\"[ntr0]{singlequote}{1}
 ASCII {singlequote}{1}{asciichar}{singlequote}{1}
 
 %x SLCOMMENT
@@ -230,7 +230,7 @@ ASCII {singlequote}{1}{asciichar}{singlequote}{1}
 	/*identifiers*/
 
 {Intconst}		{ yylval.n = atoi(yytext); isNextEOF(); return T_intconst; }
-{Char}			{ printf("%s\n", yytext); yylval.c = yytext[1]; isNextEOF(); return T_char; }
+{Char}			{ yylval.c = yytext[1]; isNextEOF(); return T_char; }
 {Id}			{ yylval.s = strdup(yytext); isNextEOF(); return T_id; }
 
 {EscapeChar}	{ yylval.c = checkForEscapeChars(yytext[2]); isNextEOF(); return T_char; }
