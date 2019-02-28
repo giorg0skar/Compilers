@@ -5,6 +5,7 @@ def main is int
     #y := "door"
     y[1] := 'a'
     writeChar: y[1]
-    writeString: "door"
+    writeChar: '\t'
+    writeString: "bubbles\n"
     return: 0
 

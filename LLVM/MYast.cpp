@@ -1345,13 +1345,22 @@ char makeEscapeChar(char c) {
     {
         case '\\':
             return '\\';
+        case '\'':
+            return '\'';
+        case '\"':
+            return '\"';
         case 'n':
             return '\n';
+        case 't':
+            return '\t';
+        case 'r':
+            return '\r';
         case '0':
             return '\0';
         default:
             break;
     }
+    return c;
 }
 
 int isLibFunction(char *name) {
@@ -2067,16 +2076,16 @@ Value *ast_compile(ast t)
     case STRING_LIT:
     {
         //printf("the string is: %s\n", t->id);
-        printf("len is %d\n", strlen(t->id));
+        //printf("len is %d\n", strlen(t->id));
         char *str = (char *) malloc(sizeof(char)*(strlen(t->id) + 1) );
         strcpy(str, t->id);
         std::vector<Constant *> str_vector;
         int escape_char = 0;
         for(int i=0; i < strlen(str); i++) {
-            char c = str[i];
-            if (c == '\\' && escape_char==0) escape_char = 1;
+            if (str[i] == '\\' && escape_char==0) escape_char = 1;
             else if (escape_char) {
-                c = makeEscapeChar(c);
+                char c = makeEscapeChar(str[i]);
+                escape_char = 0;
                 str_vector.push_back(c8(c));
             }
             else str_vector.push_back(c8(str[i]));
@@ -2086,7 +2095,8 @@ Value *ast_compile(ast t)
         //string literals are arrays of typeChar
         Type_h ty = t->type;
         Type *ref = translateType(ty->refType);
-        int size = ty->size;
+        //int size = ty->size;
+        int size = str_vector.size();
         ArrayType *str_type = ArrayType::get(ref, size);
 
         GlobalVariable *TheString;

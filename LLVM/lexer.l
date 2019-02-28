@@ -62,12 +62,12 @@ int spacecounter=0;
 int blockcounter=0;
 int newline_block = 0;		//if set then the following block begins in the next line
 int sameline_block = 0;		//if set then the following block begins in the same line after character ':'
-int mystack[100];			//stack contains how right in the editor each block starts
+int mystack[200];			//stack contains how right in the editor each block starts
 int sp = -1;                 //sp points to the latest element pushed into the stack
 
 void push(int element);
-int pop();
 void isNextEOF(void);
+char checkForEscapeChars(char c);
 void yyerror (const char *msg);
 %}
 
@@ -80,12 +80,13 @@ singlequote \'
 doublequote \"
 asciichar \x[0-9a-fA-F][0-9a-fA-F]
 Char {singlequote}{1}.{singlequote}{1}
+EscapeChar {singlequote}{1}\[ntr0]{singlequote}{1}
+ASCII {singlequote}{1}{asciichar}{singlequote}{1}
 
 %x SLCOMMENT
 %x MLCOMMENT
 %x STRING
 %x FINAL
-%s SIMPLE
 %x NEWLINE
 
 %%
@@ -134,7 +135,8 @@ Char {singlequote}{1}.{singlequote}{1}
 <NEWLINE>\t		{ isNextEOF(); spacecounter += 4; }
 <NEWLINE>\r		{ isNextEOF(); spacecounter = 0; }
 <NEWLINE>\n		{ isNextEOF(); spacecounter=0; linenumber++; }
-<NEWLINE>[^ \t\r\n]	{ 	if ((spacecounter <= mystack[sp]) && (sp > -1) ) {
+<NEWLINE>[^ \t\r\n]	{ 	if ((sp > -1) && (spacecounter <= mystack[sp]) ) 
+						{
 							sp--; blockcounter--;
 							/* copy the token we scanned back to be scanned again*/
 							char *yycopy = strdup( yytext );
@@ -228,9 +230,11 @@ Char {singlequote}{1}.{singlequote}{1}
 	/*identifiers*/
 
 {Intconst}		{ yylval.n = atoi(yytext); isNextEOF(); return T_intconst; }
-{Char}			{ yylval.c = yytext[0]; isNextEOF(); return T_char; }
+{Char}			{ printf("%s\n", yytext); yylval.c = yytext[1]; isNextEOF(); return T_char; }
 {Id}			{ yylval.s = strdup(yytext); isNextEOF(); return T_id; }
-\r				{ isNextEOF(); /* nothing */}
+
+{EscapeChar}	{ yylval.c = checkForEscapeChars(yytext[2]); isNextEOF(); return T_char; }
+"\r"				{ isNextEOF(); /* nothing */}
 
  /*\n			{ linenumber++; } */
 
@@ -255,14 +259,19 @@ void isNextEOF(void) {
 	return;
 }
 
+char checkForEscapeChars(char c) {
+	char next = c;
+	if (next == 't') {return '\t';}
+	if (next == 'n') {return '\n';}
+	if (next == 'r') {return '\r';}
+	if (next == '0') {return '\0';}
+	
+	return c;
+}
+
 void push(int element) {
 	sp++;
 	mystack[sp]=element;
 	return;
 }
 
-int pop(void) {
-	int n= mystack[sp];
-	sp--;
-	return n;
-}
