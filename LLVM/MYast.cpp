@@ -244,6 +244,7 @@ std::vector<BasicBlock *> blockNames;
 std::map<Value *, int> paramsIndex;
 int passByReference = 0;
 int loadByReference = 0;
+Function::arg_iterator Callee_iter;
 
 // Useful LLVM types.
 static Type *i8 = IntegerType::get(TheContext, 8);
@@ -1969,13 +1970,15 @@ Value *ast_compile(ast t)
             Type *real_param_type = translateType(t->branch1->type);
             if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
-            arg_it++;
+            Callee_iter = arg_it;
             args.push_back(ast_compile(t->branch1));
+            arg_it++;
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
                 real_param_type = translateType(temp->branch1->type);
                 if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
+                Callee_iter = arg_it;
                 arg_it++;
 
                 Value *v = ast_compile(temp->branch1);
@@ -2002,7 +2005,9 @@ Value *ast_compile(ast t)
             Type *ty = translateType(t->type);
             if (ty->isArrayTy() ) {
                 //if an array is to be passed by ref, we pass a pointer to it's first element
-                //Type *ref_type = translateType(t->type->refType);
+                Type *ref_type = translateType(t->type->refType);
+                //PointerType *typical_arg_type = Callee_iter->getType();
+                //IF FUNCTION ARG IS FIXED LENGTH ARRAY NEED TO RETURN GEP
                 //gep = Builder.CreateInBoundsGEP(ref_type, gep, c32(0), "");
                 gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), c32(0)}, "");
             }
@@ -2044,27 +2049,31 @@ Value *ast_compile(ast t)
         
         gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
         //Value *ptr = gep;
-        Value *array_value = gep;
-
-        //TEMPORARY FOR TESTING
-        Type *arrType = translateType(temp->type->refType);
-        auto iter = idxlist.rbegin();
+        Value *array_value;
 
         if (offset <= paramsIndex.find(record)->second) {
             //if offset <= paramsIndex then the array is a parameter and thus it passes by reference. so we load it's location
+            Type_h astType = temp->type;
             array_value = Builder.CreateLoad(gep, "");
-            gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+            for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); iter++) {
+                astType = astType->refType;
+                Type *arrType = translateType(astType);
+                gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+                array_value = gep;
+                //array_value = Builder.CreateLoad(gep, "");
+            }
             array_value = Builder.CreateLoad(gep, "");
         }
         else {
             //array is not a parameter
-            gep = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
+            for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
+                gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), *iter}, "");
+                //gep = Builder.CreateInBoundsGEP(array_value, std::vector<Value *>{c32(0), *iter}, "");
+                //array_value = Builder.CreateLoad(gep, "");
+            }
             array_value = Builder.CreateLoad(gep, "");
         }
-        // for(auto iter = idxlist.rbegin(); iter != idxlist.rend(); iter++) {
-        //     gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
-        //     array_value = Builder.CreateLoad(gep, "");
-        // }
+
         if (passByReference) {
             passByReference = 0;
             return gep;

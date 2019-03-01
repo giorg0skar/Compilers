@@ -68,6 +68,7 @@ int sp = -1;                 //sp points to the latest element pushed into the s
 void push(int element);
 void isNextEOF(void);
 char checkForEscapeChars(char c);
+int hex2int(char ch);
 void yyerror (const char *msg);
 %}
 
@@ -234,6 +235,7 @@ ASCII {singlequote}{1}{asciichar}{singlequote}{1}
 {Id}			{ yylval.s = strdup(yytext); isNextEOF(); return T_id; }
 
 {EscapeChar}	{ yylval.c = checkForEscapeChars(yytext[2]); isNextEOF(); return T_char; }
+{ASCII}			{ isNextEOF(); return T_char; }
 "\r"				{ isNextEOF(); /* nothing */}
 
  /*\n			{ linenumber++; } */
@@ -258,6 +260,23 @@ void isNextEOF(void) {
 	}
 	return;
 }
+
+int hex2int(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (ch >= 'A' && ch <= 'F')
+        return ch - 'A' + 10;
+    if (ch >= 'a' && ch <= 'f')
+        return ch - 'a' + 10;
+    return -1;
+}
+
+// char checkForASCII(char ch1, char ch2) {
+// 	int n1 = hex2int(ch1);
+// 	int n2 = hex2int(ch2);
+// 	int decimal_num = n1 + n2;
+// }
 
 char checkForEscapeChars(char c) {
 	char next = c;
