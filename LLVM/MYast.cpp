@@ -1701,11 +1701,22 @@ Value *ast_compile(ast t)
         Value *v = ast_compile(t->branch1);
 
         //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
-        if (equalType(t->branch1->type, typeBoolean)) {
-            cond = v;
+        // if (equalType(t->branch1->type, typeBoolean)) {
+        //     //cond = cast<ICmpInst>(v);
+        //     cond = v;
+        // }
+        // else {
+        //     cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        // }
+
+        ConstantInt *CI;
+        if (CI = dyn_cast<ConstantInt>(v) ) {
+            int num = CI->getSExtValue();
+            cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            if (t->branch1->k == FUNC_CALL) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            else cond = v;
         }
 
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
@@ -1726,7 +1737,17 @@ Value *ast_compile(ast t)
         //we execute all elif nodes
         for(ast elif_node=t->branch3; elif_node!=NULL; elif_node = elif_node->branch3) {
             Value *val = ast_compile(elif_node->branch1);
-            Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+            Value *cond1;
+            ConstantInt *CI;
+            if (CI = dyn_cast<ConstantInt>(val) ) {
+                int num = CI->getSExtValue();
+                cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
+            }
+            else {
+                if (elif_node->branch1->k == FUNC_CALL) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                else cond1 = val;
+            }
+
             Function *TheFunction = Builder.GetInsertBlock()->getParent();
             BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction);
             BasicBlock *NextElifBB;
@@ -1748,11 +1769,21 @@ Value *ast_compile(ast t)
         Value *v = ast_compile(t->branch1);
 
         //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
-        if (equalType(t->branch1->type, typeBoolean)) {
-            cond = v;
+        // if (equalType(t->branch1->type, typeBoolean)) {
+        //     cond = v;
+        // }
+        // else {
+        //     cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+        // }
+
+        ConstantInt *CI;
+        if (CI = dyn_cast<ConstantInt>(v) ) {
+            int num = CI->getSExtValue();
+            cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            if (t->branch1->k == FUNC_CALL) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            else cond = v;
         }
         
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
@@ -1774,7 +1805,17 @@ Value *ast_compile(ast t)
         //we execute all elif nodes
         for(ast elif_node=t->branch3; elif_node!=NULL; elif_node = elif_node->branch3) {
             Value *val = ast_compile(elif_node->branch1);
-            Value *cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+            Value *cond1;
+            ConstantInt *CI;
+            if (CI = dyn_cast<ConstantInt>(val) ) {
+                int num = CI->getSExtValue();
+                cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
+            }
+            else {
+                if (elif_node->branch1->k == FUNC_CALL) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                else cond1 = val;
+            }
+
             Function *TheFunction1 = Builder.GetInsertBlock()->getParent();
             BasicBlock *InElifBB = BasicBlock::Create(TheContext, "in_elif", TheFunction1);
             BasicBlock *NextElifBB;
@@ -2170,17 +2211,53 @@ Value *ast_compile(ast t)
     {
         //Boolean not, and, or cases (!, &&, ||)
         Value *l = ast_compile(t->branch2);
+        ConstantInt *res;
+        if (res = dyn_cast<ConstantInt>(l)) {
+            return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
+        }
         return Builder.CreateICmpEQ(l, c8(0), "cond_nottmp");
     }
     case AND:
     {
-        Value *l = ast_compile(t->branch1);
-        Value *r = ast_compile(t->branch2);
-        bool res1 = cast<bool>(l);
-        bool res2 = cast<bool>(r);
-        bool result = l && r;
-        Value *val = cast<Value *>(result);
-        return Builder.CreateICmpEQ(val, c32(0), "cond_andtmp");
+        ConstantInt *res1, *res2;
+        Value *l, *r;
+        l = ast_compile(t->branch1);
+        if (res1 = dyn_cast<ConstantInt>(l) ) {
+            if (res1->isZero()) return c32(0);
+
+            //we have determined that left hand is non zero
+            r = ast_compile(t->branch2);
+            if (res2 = dyn_cast<ConstantInt>(r) ) {
+                //if right hand is number we compare with 0
+                return Builder.CreateICmpNE(r, c32(0), "cond_andtmp");
+            }
+            //if r s a comparison we just return it
+            else return r;
+        }
+        //left hand is a boolean condition
+        r = ast_compile(t->branch2);
+        if (res2 = dyn_cast<ConstantInt>(r) ) {
+            if (res2->isZero()) return c32(0);
+            
+            return l;
+        }
+        //now we have determined that both l and r are conditions
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *RightBB = BasicBlock::Create(TheContext, "right_cond_and", TheFunction);
+        BasicBlock *ResultBB = BasicBlock::Create(TheContext, "result_and", TheFunction);
+        PHINode *phi_iter = Builder.CreatePHI(i32, 2, "and");
+        phi_iter->addIncoming(c32(0), Builder.GetInsertBlock());
+
+        Builder.CreateCondBr(l, RightBB, ResultBB);
+        Builder.SetInsertPoint(RightBB);
+
+        Value *right_op;
+        Builder.CreateBr(ResultBB);
+        Builder.SetInsertPoint(ResultBB);
+        phi_iter->addIncoming(r, RightBB);
+
+        Value *and_result = phi_iter;
+        return and_result;
     }
     case OR:
     {
