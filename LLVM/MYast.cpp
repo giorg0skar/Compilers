@@ -1415,7 +1415,11 @@ Value *compile_function(ast f)
     Type *par_type;
     if (params) {
         par_type = translateType(params->type);
-        if (par_type->isArrayTy()) par_type = PointerType::get(par_type, 0);
+        if (par_type->isArrayTy()) {
+            ArrayType *ar = cast<ArrayType>(par_type);
+            //par_type = PointerType::get(par_type, 0);
+            par_type = PointerType::get(ar->getElementType(), 0);
+        }
         for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) 
         {
             parameters.push_back(par_type);
@@ -1425,7 +1429,10 @@ Value *compile_function(ast f)
     for(ast defs = f->branch1->branch2; defs!=NULL; defs=defs->branch2) {
         params = defs->branch1;
         par_type = translateType(params->type);
-        if (par_type->isArrayTy()) par_type = PointerType::get(par_type, 0);
+        if (par_type->isArrayTy()) {
+            ArrayType *ar = cast<ArrayType>(par_type);
+            par_type = PointerType::get(ar->getElementType(), 0);
+        }
         for(ast temp = params->branch1; temp!=NULL; temp=temp->branch1) 
         {
             parameters.push_back(par_type);
@@ -1930,6 +1937,7 @@ Value *ast_compile(ast t)
             Type *real_param_type = translateType(t->branch1->type);
             if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
+            Callee_iter = arg_it;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
@@ -1937,6 +1945,7 @@ Value *ast_compile(ast t)
                 real_param_type = translateType(temp->branch1->type);
                 if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
+                Callee_iter = arg_it;
                 arg_it++;
 
                 Value *v = ast_compile(temp->branch1);
@@ -2005,10 +2014,11 @@ Value *ast_compile(ast t)
             Type *ty = translateType(t->type);
             if (ty->isArrayTy() ) {
                 //if an array is to be passed by ref, we pass a pointer to it's first element
-                Type *ref_type = translateType(t->type->refType);
-                //PointerType *typical_arg_type = Callee_iter->getType();
-                //IF FUNCTION ARG IS FIXED LENGTH ARRAY NEED TO RETURN GEP
-                //gep = Builder.CreateInBoundsGEP(ref_type, gep, c32(0), "");
+                // Type *ref_type = translateType(t->type->refType);
+                // PointerType *typical_arg_type = cast<PointerType>(Callee_iter->getType());
+                // Type *elemType = typical_arg_type->getElementType();
+                // ArrayType *arrType = cast<ArrayType>(ty);
+
                 gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), c32(0)}, "");
             }
             passByReference = 0;
@@ -2048,19 +2058,22 @@ Value *ast_compile(ast t)
         }
         
         gep = Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(offset)}, "");
-        //Value *ptr = gep;
         Value *array_value;
 
         if (offset <= paramsIndex.find(record)->second) {
             //if offset <= paramsIndex then the array is a parameter and thus it passes by reference. so we load it's location
-            Type_h astType = temp->type;
+            Type_h astType = temp->type->refType;
             array_value = Builder.CreateLoad(gep, "");
-            for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); iter++) {
-                astType = astType->refType;
-                Type *arrType = translateType(astType);
-                gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
-                array_value = gep;
-                //array_value = Builder.CreateLoad(gep, "");
+            Type *arrType = translateType(astType);
+            auto iter = idxlist.rbegin();
+            gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+            iter++;
+            for(; iter != idxlist.rend(); iter++) {
+                // astType = astType->refType;
+                // arrType = translateType(astType);
+                gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), *iter}, "");
+                //gep = Builder.CreateInBoundsGEP(arrType, array_value, *iter, "");
+                //array_value = gep;
             }
             array_value = Builder.CreateLoad(gep, "");
         }
