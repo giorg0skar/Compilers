@@ -219,7 +219,6 @@ static std::unique_ptr<Module> TheModule;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 
 // Global LLVM variables related to the generated code.
-static GlobalVariable *TheNL;
 static Function *TheWriteInteger;
 static Function *TheWriteString;
 static Function *TheWriteChar;
@@ -244,7 +243,6 @@ std::vector<BasicBlock *> blockNames;
 std::map<Value *, int> paramsIndex;
 int passByReference = 0;
 int loadByReference = 0;
-Function::arg_iterator Callee_iter;
 
 // Useful LLVM types.
 static Type *i1 = IntegerType::get(TheContext, 1);
@@ -414,7 +412,7 @@ void ast_sem(ast t)
 
         //ast_sem(t->branch2);
 
-        //if t->branch2 is NULL the following loop exits immediatly so i don't need an if-check
+        //if t->branch2 is NULL, the following loop exits immediately so i don't need an if-check
         temp = t->branch2; //temp now points to the header_part node. branch1 is a fpar_node and branch2 is another header_part node
         ast headerpart;
         for (headerpart = t->branch2; headerpart != NULL; headerpart = headerpart->branch2)
@@ -954,14 +952,24 @@ void ast_sem(ast t)
             error("l_value is not an array");
         
         ast_sem(t->branch2);
-        if (!equalType(t->branch2->type, typeInteger))
-            error("tried to access an array with index not being integer");
-        if (t->branch2->num < 0)
-            error("index below 0");
-        if (isArray(t->branch1->type))
+        if (!equalType(t->branch2->type, typeInteger)) 
         {
-            if (t->branch2->num >= t->branch1->type->size)
-                error("index exceeds array size");
+            //we check if branch1 is a pointer
+            if (isPointer(t->branch2->type)) {
+                Type_h indexType = t->branch2->type;
+                if (!equalType(indexType->refType, typeInteger)) 
+                    error("tried to access an array with index not being integer");
+            }
+            else error("tried to access an array with index not being integer");
+        }
+        else {
+            if (t->branch2->num < 0)
+                error("index below 0");
+            if (isArray(t->branch1->type))
+            {
+                if (t->branch2->num >= t->branch1->type->size)
+                    error("index exceeds array size");
+            }
         }
 
         t->type = t->branch1->type->refType;
@@ -988,7 +996,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        Type_h opType;
+        if (isPointer(t->branch1->type)) {
+            opType = t->branch1->type;
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in + operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in + operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in + operator");
+        }
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeInteger;
@@ -1002,13 +1026,29 @@ void ast_sem(ast t)
             else
                 error("type mismatch in + operator");
         }
+        else error("no recognisable type in + operation");
         return;
     }
     case MINUS:
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in - operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in - operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in - operator");
+        }
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeInteger;
@@ -1028,7 +1068,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in * operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in * operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in * operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeInteger;
@@ -1050,7 +1106,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in / operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in / operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in / operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeInteger;
@@ -1070,7 +1142,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in % operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in % operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in % operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeInteger;
@@ -1124,7 +1212,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1144,7 +1248,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1164,7 +1284,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1184,7 +1320,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1204,7 +1356,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1224,7 +1392,23 @@ void ast_sem(ast t)
     {
         ast_sem(t->branch1);
         ast_sem(t->branch2);
-        if (equalType(t->branch1->type, typeInteger))
+        if (isPointer(t->branch1->type)) 
+        {
+            if (isPointer(t->branch2->type)) {
+                if (equalType(t->branch1->type, t->branch2->type)) t->type = t->branch1->type->refType;
+                else error("type mismatch in = operator");
+            }
+            else if (equalType(t->branch1->type->refType, t->branch2->type)) {
+                t->type = t->branch2->type;
+            }
+            else error("type mismatch in = operator");
+        }
+        else if (isPointer(t->branch2->type)) {
+            if (equalType(t->branch1->type, t->branch2->type->refType)) t->type = t->branch1->type;
+            else error("type mismatch in = operator");
+        }
+
+        else if (equalType(t->branch1->type, typeInteger))
         {
             if (equalType(t->branch2->type, typeInteger))
                 t->type = typeBoolean;
@@ -1711,15 +1895,6 @@ Value *ast_compile(ast t)
         Value *cond;
         Value *v = ast_compile(t->branch1);
 
-        //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
-        // if (equalType(t->branch1->type, typeBoolean)) {
-        //     //cond = cast<ICmpInst>(v);
-        //     cond = v;
-        // }
-        // else {
-        //     cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
-        // }
-
         ConstantInt *CI;
         if (CI = dyn_cast<ConstantInt>(v) ) {
             int num = CI->getSExtValue();
@@ -1989,7 +2164,6 @@ Value *ast_compile(ast t)
             Type *real_param_type = translateType(t->branch1->type);
             if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
-            Callee_iter = arg_it;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
@@ -1997,7 +2171,6 @@ Value *ast_compile(ast t)
                 real_param_type = translateType(temp->branch1->type);
                 if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
-                Callee_iter = arg_it;
                 arg_it++;
 
                 Value *v = ast_compile(temp->branch1);
@@ -2031,7 +2204,6 @@ Value *ast_compile(ast t)
             Type *real_param_type = translateType(t->branch1->type);
             if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
             else passByReference = 0;
-            Callee_iter = arg_it;
             args.push_back(ast_compile(t->branch1));
             arg_it++;
 
@@ -2039,7 +2211,6 @@ Value *ast_compile(ast t)
                 real_param_type = translateType(temp->branch1->type);
                 if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
                 else passByReference = 0;
-                Callee_iter = arg_it;
                 arg_it++;
 
                 Value *v = ast_compile(temp->branch1);
@@ -2076,25 +2247,30 @@ Value *ast_compile(ast t)
             passByReference = 0;
             return gep;
         }
-        else if (loadByReference) {
+        if (loadByReference) {
             Value *ptr = Builder.CreateLoad(gep, "");
             loadByReference = 0;
             return Builder.CreateLoad(ptr, t->id);
         }
-        else return Builder.CreateLoad(gep, t->id);
+        return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
     {
         int passMode = passByReference;
         int loadMode = loadByReference;
-        loadByReference = 0;
         passByReference = 0;
+        if (isPointer(t->branch2->type)) loadByReference = 1;
+        else loadByReference = 0;
         Value *val = ast_compile(t->branch2);
+        loadByReference = 0;
+
         std::vector<Value *> idxlist;
         idxlist.push_back(val);
         ast temp;
         for(temp = t->branch1; temp->branch1 != NULL; temp=temp->branch1) {
             //loop until we reach the base node. we store the index for each array dimension
+            if (isPointer(temp->branch2->type)) loadByReference = 1;
+            else loadByReference = 0;
             idxlist.push_back(ast_compile(temp->branch2));
         }
 
@@ -2190,8 +2366,11 @@ Value *ast_compile(ast t)
     }
     case PLUS:
     {
+        if (isPointer(t->branch1->type)) loadByReference = 1;
         Value *l = ast_compile(t->branch1);
+        if (isPointer(t->branch2->type)) loadByReference = 1;
         Value *r = ast_compile(t->branch2);
+        loadByReference = 0;
         return Builder.CreateAdd(l, r, "addtmp");
     }
     case MINUS:
@@ -2226,7 +2405,7 @@ Value *ast_compile(ast t)
         if (equalType(t->branch2->type, typeChar)) {
             return Builder.CreateICmpEQ(l, c8(0), "cond_nottmp");
         }
-        
+
         if (res = dyn_cast<ConstantInt>(l)) {
             return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
         }

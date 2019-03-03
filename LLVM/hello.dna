@@ -1,11 +1,20 @@
 def main is int
 
-    var x y is byte[5]
-    var z is byte
+    def g: arr as int[], n as ref int
+        arr[n] := n + 1
+        writeInteger: arr[n]
+
+    var y is int[5]
+    var x is int
     #y := "door"
-    y[1] := 'a'
-    writeChar: y[1]
-    writeChar: '\n'
-    writeString: "bubbles\n"
+    x := 0
+    loop:
+        if x >= 5: break
+        y[x] := x
+        x := x + 1
+    
+    x := 2
+    g: y, x
+    
     return: 0
 
