@@ -2223,6 +2223,10 @@ Value *ast_compile(ast t)
         //Boolean not, and, or cases (!, &&, ||)
         Value *l = ast_compile(t->branch2);
         ConstantInt *res;
+        if (equalType(t->branch2->type, typeChar)) {
+            return Builder.CreateICmpEQ(l, c8(0), "cond_nottmp");
+        }
+        
         if (res = dyn_cast<ConstantInt>(l)) {
             return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
         }
@@ -2267,7 +2271,7 @@ Value *ast_compile(ast t)
         Builder.SetInsertPoint(ResultBB);
 
         PHINode *phi_iter = Builder.CreatePHI(i1, 2, "and");
-        Value *itsfalse = Builder.CreateICmpNE(c32(0), c32(0), "");
+        Value *itsfalse = Builder.CreateICmpNE(c32(0), c32(0), "falsetmp");
         phi_iter->addIncoming(itsfalse, BB);
         phi_iter->addIncoming(r, RightBB);
 
@@ -2276,13 +2280,50 @@ Value *ast_compile(ast t)
     }
     case OR:
     {
-        Value *l = ast_compile(t->branch1);
-        Value *r = ast_compile(t->branch2);
-        bool res1 = cast<bool>(l);
-        bool res2 = cast<bool>(r);
-        bool result = l || r;
-        Value *val = cast<Value *>(result);
-        return Builder.CreateICmpEQ(val, c32(0), "cond_ortmp");
+        ConstantInt *res1, *res2;
+        Value *l, *r;
+        l = ast_compile(t->branch1);
+        if (res1 = dyn_cast<ConstantInt>(l) ) {
+            if (res1->isOne()) return c32(1);
+            if (res1->getZExtValue() > 0) return c32(1);
+
+            //we have determined that left hand is zero
+            r = ast_compile(t->branch2);
+            if (res2 = dyn_cast<ConstantInt>(r) ) {
+                //if right hand is number we compare with 0
+                return Builder.CreateICmpNE(r, c32(0), "cond_ortmp");
+            }
+            //if r s a comparison we just return it
+            else return r;
+        }
+        //left hand is a boolean condition
+        r = ast_compile(t->branch2);
+        if (res2 = dyn_cast<ConstantInt>(r) ) {
+            if (res2->isOne()) return c32(1);
+            if (res2->getZExtValue() > 0) return c32(1);
+            
+            return l;
+        }
+        //now we have determined that both l and r are conditions
+        Function *TheFunction = Builder.GetInsertBlock()->getParent();
+        BasicBlock *RightBB = BasicBlock::Create(TheContext, "right_cond_or", TheFunction);
+        BasicBlock *ResultBB = BasicBlock::Create(TheContext, "result_or", TheFunction);
+        BasicBlock *BB = Builder.GetInsertBlock();
+
+        Builder.CreateCondBr(l, ResultBB, RightBB);
+        Builder.SetInsertPoint(RightBB);
+
+        //Value *right_op;
+        Builder.CreateBr(ResultBB);
+        Builder.SetInsertPoint(ResultBB);
+
+        PHINode *phi_iter = Builder.CreatePHI(i1, 2, "or");
+        Value *itstrue = Builder.CreateICmpEQ(c32(0), c32(0), "truetmp");
+        phi_iter->addIncoming(itstrue, BB);
+        phi_iter->addIncoming(r, RightBB);
+
+        Value *or_result = phi_iter;
+        return or_result;
     }
     case EQ:
     {
