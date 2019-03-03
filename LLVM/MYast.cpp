@@ -661,8 +661,13 @@ void ast_sem(ast t)
         //printf("entered if\n");
         ast_sem(t->branch1);
         checkForBool(t->branch1);
-        if (!equalType(t->branch1->type, typeBoolean))
-            error("if expects a boolean condition");
+        if (!equalType(t->branch1->type, typeBoolean)) {
+            // printf("type of %s is ", t->branch1->id);
+            // printType(t->branch1->type);
+            // printf("\n");
+            if (t->branch1->k != FUNC_CALL)
+                error("if expects a boolean condition");
+        }
         ast_sem(t->branch2);
 
         ast_sem(t->branch3);
@@ -673,8 +678,10 @@ void ast_sem(ast t)
         //printf("entered if else\n");
         ast_sem(t->branch1);
         checkForBool(t->branch1);
-        if (!equalType(t->branch1->type, typeBoolean))
-            error("if expects a boolean condition");
+        if (!equalType(t->branch1->type, typeBoolean)) {
+            if (t->branch1->k != FUNC_CALL)
+                error("if expects a boolean condition");
+        }
         //openScope();
         ast_sem(t->branch2);
         //closeScope();
@@ -1807,16 +1814,12 @@ Value *ast_compile(ast t)
     }
     case ASSIGN:
     {
-        if (isPointer(t->branch2->type)) loadByReference = 1;
-        else loadByReference = 0;
         Value *val = ast_compile(t->branch2);
         //printf("%s var ofset is %d\n", t->branch1->id, t->branch1->offset);
         ast node;
         std::vector<Value *> idxlist;
         //in case left side is access to an array element, we iterate until we find the base array node
         for(node=t->branch1; node->branch1 != NULL; node=node->branch1) {
-            if (isPointer(node->branch2->type)) loadByReference = 1;
-            else loadByReference = 0;
             Value *i = ast_compile(node->branch2);
             idxlist.push_back(i);
         }
@@ -1901,7 +1904,10 @@ Value *ast_compile(ast t)
             cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            if (t->branch1->k == FUNC_CALL) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            if (t->branch1->k == FUNC_CALL) {
+                if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+                else if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            }
             else cond = v;
         }
 
@@ -1930,7 +1936,10 @@ Value *ast_compile(ast t)
                 cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
             }
             else {
-                if (elif_node->branch1->k == FUNC_CALL) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                if (elif_node->branch1->k == FUNC_CALL) {
+                    if (equalType(elif_node->branch1->type, typeInteger)) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                    else if (equalType(elif_node->branch1->type, typeChar)) cond1 = Builder.CreateICmpNE(val, c8(0), "elif_cond");
+                }
                 else cond1 = val;
             }
 
@@ -1968,7 +1977,10 @@ Value *ast_compile(ast t)
             cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            if (t->branch1->k == FUNC_CALL) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            if (t->branch1->k == FUNC_CALL) {
+                if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+                else if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            }
             else cond = v;
         }
         
@@ -1998,7 +2010,10 @@ Value *ast_compile(ast t)
                 cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
             }
             else {
-                if (elif_node->branch1->k == FUNC_CALL) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                if (elif_node->branch1->k == FUNC_CALL) {
+                    if (equalType(elif_node->branch1->type, typeInteger)) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
+                    else if (equalType(elif_node->branch1->type, typeChar)) cond1 = Builder.CreateICmpNE(val, c8(0), "elif_cond");
+                }
                 else cond1 = val;
             }
 
@@ -2161,15 +2176,13 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            Type *real_param_type = translateType(t->branch1->type);
-            if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
+            if (arg_it->getType()->isPointerTy() ) passByReference = 1;
             else passByReference = 0;
             arg_it++;
             args.push_back(ast_compile(t->branch1));
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                real_param_type = translateType(temp->branch1->type);
-                if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
+                if (arg_it->getType()->isPointerTy() ) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
@@ -2201,15 +2214,14 @@ Value *ast_compile(ast t)
         if (t->branch1) {
             Function::arg_iterator arg_it = Callee->arg_begin();
             if (!isLib) arg_it++;
-            Type *real_param_type = translateType(t->branch1->type);
-            if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
+            if (arg_it->getType()->isPointerTy() ) passByReference = 1;
             else passByReference = 0;
             args.push_back(ast_compile(t->branch1));
             arg_it++;
 
             for(ast temp=t->branch2; temp != NULL; temp=temp->branch2) {
-                real_param_type = translateType(temp->branch1->type);
-                if (arg_it->getType()->isPointerTy() && !(real_param_type->isPointerTy()) ) passByReference = 1;
+                //real_param_type = translateType(temp->branch1->type);
+                if (arg_it->getType()->isPointerTy() ) passByReference = 1;
                 else passByReference = 0;
                 arg_it++;
 
@@ -2237,45 +2249,48 @@ Value *ast_compile(ast t)
             Type *ty = translateType(t->type);
             if (ty->isArrayTy() ) {
                 //if an array is to be passed by ref, we pass a pointer to it's first element
-                // Type *ref_type = translateType(t->type->refType);
-                // PointerType *typical_arg_type = cast<PointerType>(Callee_iter->getType());
-                // Type *elemType = typical_arg_type->getElementType();
-                // ArrayType *arrType = cast<ArrayType>(ty);
 
                 gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), c32(0)}, "");
+            }
+            if (ty->isPointerTy()) {
+                gep = Builder.CreateLoad(gep, "");
             }
             passByReference = 0;
             return gep;
         }
-        if (loadByReference) {
-            Value *ptr = Builder.CreateLoad(gep, "");
-            loadByReference = 0;
-            return Builder.CreateLoad(ptr, t->id);
+
+        if (isPointer(t->type)) {
+            gep = Builder.CreateLoad(gep, "");
         }
+        // if (loadByReference) {
+        //     Value *ptr = Builder.CreateLoad(gep, "");
+        //     loadByReference = 0;
+        //     return Builder.CreateLoad(ptr, t->id);
+        // }
         return Builder.CreateLoad(gep, t->id);
     }
     case ARR:
     {
         int passMode = passByReference;
-        int loadMode = loadByReference;
+        //int loadMode = loadByReference;
         passByReference = 0;
-        if (isPointer(t->branch2->type)) loadByReference = 1;
-        else loadByReference = 0;
+        // if (isPointer(t->branch2->type)) loadByReference = 1;
+        // else loadByReference = 0;
         Value *val = ast_compile(t->branch2);
-        loadByReference = 0;
+        //loadByReference = 0;
 
         std::vector<Value *> idxlist;
         idxlist.push_back(val);
         ast temp;
         for(temp = t->branch1; temp->branch1 != NULL; temp=temp->branch1) {
             //loop until we reach the base node. we store the index for each array dimension
-            if (isPointer(temp->branch2->type)) loadByReference = 1;
-            else loadByReference = 0;
+            // if (isPointer(temp->branch2->type)) loadByReference = 1;
+            // else loadByReference = 0;
             idxlist.push_back(ast_compile(temp->branch2));
         }
 
         passByReference = passMode;
-        loadByReference = loadMode;
+        //loadByReference = loadMode;
         int frame_diff = temp->nesting_diff;
         int offset = temp->offset;
         Value *record = currentAlloca;
@@ -2366,11 +2381,8 @@ Value *ast_compile(ast t)
     }
     case PLUS:
     {
-        if (isPointer(t->branch1->type)) loadByReference = 1;
         Value *l = ast_compile(t->branch1);
-        if (isPointer(t->branch2->type)) loadByReference = 1;
         Value *r = ast_compile(t->branch2);
-        loadByReference = 0;
         return Builder.CreateAdd(l, r, "addtmp");
     }
     case MINUS:
