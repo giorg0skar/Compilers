@@ -2,17 +2,12 @@
 source_filename = "dana program"
 
 %dummy = type opaque
-%struct_main = type { %dummy*, [3 x [3 x i32]], i32, i32 }
-%struct_isSymmetric = type { %struct_main*, [3 x [3 x i32]]*, i32, i32 }
-%struct_isTriangular = type { %struct_main*, [3 x [3 x i32]]*, i32, i32, i32, i32 }
+%struct_main = type { %dummy*, i32, i32, [24 x i32] }
+%struct_quicksort = type { %struct_main*, i32*, i32, i32, i32, i32, i32, i32 }
+%struct_writeArray = type { %struct_main*, i32, i32*, i32 }
 
-@0 = private constant [51 x i8] c"Please, give all elements of the matrix (3 by 3):\0A\00"
-@1 = private constant [25 x i8] c"The matrix is symmetric\0A\00"
-@2 = private constant [29 x i8] c"The matrix is not symmetric\0A\00"
-@3 = private constant [30 x i8] c"The matrix is not triangular\0A\00"
-@4 = private constant [32 x i8] c"The matrix is lower triangular\0A\00"
-@5 = private constant [32 x i8] c"The matrix is upper triangular\0A\00"
-@6 = private constant [53 x i8] c"The matrix is diagonal (lower and upper triangular)\0A\00"
+@0 = private constant [3 x i8] c", \00"
+@1 = private constant [2 x i8] c"\0A\00"
 
 declare void @writeInteger(i32)
 
@@ -47,475 +42,366 @@ entry:
   %new_frame = alloca %struct_main
   %0 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 0
   store %dummy* %previous, %dummy** %0
-  call void @writeString(i8* getelementptr inbounds ([51 x i8], [51 x i8]* @0, i32 0, i32 0))
-  %1 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 0, i32* %1
+  %1 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  store i32 65, i32* %1
+  %2 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  store i32 0, i32* %2
   br label %loop
 
-return:                                           ; preds = %endif36
+return:                                           ; preds = %after_loop
   ret void
 
-loop:                                             ; preds = %endif10, %entry
-  %2 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  store i32 0, i32* %2
-  br label %loop1
-
-after_loop:                                       ; preds = %then9
+loop:                                             ; preds = %endif, %entry
   %3 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 0, i32* %3
-  br label %loop12
+  %i = load i32, i32* %3
+  %lowertmp = icmp slt i32 %i, 16
+  br i1 %lowertmp, label %then, label %else
 
-loop1:                                            ; preds = %endif, %loop
-  %4 = call i32 @readInteger()
-  %5 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j = load i32, i32* %5
-  %6 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i = load i32, i32* %6
-  %7 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %8 = getelementptr inbounds [3 x [3 x i32]], [3 x [3 x i32]]* %7, i32 0, i32 %i
-  %9 = getelementptr inbounds [3 x i32], [3 x i32]* %8, i32 0, i32 %j
-  store i32 %4, i32* %9
-  %10 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j3 = load i32, i32* %10
-  %addtmp = add i32 %j3, 1
-  %11 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  store i32 %addtmp, i32* %11
-  %12 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j4 = load i32, i32* %12
-  %greaterorequaltmp = icmp sge i32 %j4, 3
-  br i1 %greaterorequaltmp, label %then, label %endif
+after_loop:                                       ; preds = %else
+  %4 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %5 = getelementptr inbounds [24 x i32], [24 x i32]* %4, i32 0, i32 0
+  call void @writeArray(%struct_main* %new_frame, i32 16, i32* %5)
+  %6 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %7 = getelementptr inbounds [24 x i32], [24 x i32]* %6, i32 0, i32 0
+  call void @quicksort(%struct_main* %new_frame, i32* %7, i32 0, i32 15)
+  %8 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %9 = getelementptr inbounds [24 x i32], [24 x i32]* %8, i32 0, i32 0
+  call void @writeArray(%struct_main* %new_frame, i32 16, i32* %9)
+  br label %return
 
-after_loop2:                                      ; preds = %then
-  %13 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i5 = load i32, i32* %13
-  %addtmp6 = add i32 %i5, 1
+then:                                             ; preds = %loop
+  %10 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %seed = load i32, i32* %10
+  %multmp = mul i32 %seed, 137
+  %addtmp = add i32 %multmp, 220
+  %11 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %i1 = load i32, i32* %11
+  %addtmp2 = add i32 %addtmp, %i1
+  %modtmp = srem i32 %addtmp2, 145
+  %12 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  store i32 %modtmp, i32* %12
+  %13 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %seed3 = load i32, i32* %13
   %14 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 %addtmp6, i32* %14
-  %15 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i7 = load i32, i32* %15
-  %greaterorequaltmp8 = icmp sge i32 %i7, 3
-  br i1 %greaterorequaltmp8, label %then9, label %endif10
+  %i4 = load i32, i32* %14
+  %15 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %16 = getelementptr inbounds [24 x i32], [24 x i32]* %15, i32 0, i32 %i4
+  store i32 %seed3, i32* %16
+  %17 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %i5 = load i32, i32* %17
+  %addtmp6 = add i32 %i5, 1
+  %18 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  store i32 %addtmp6, i32* %18
+  br label %endif
 
-then:                                             ; preds = %loop1
-  br label %after_loop2
+endif:                                            ; preds = %break, %then
+  br label %loop
 
-endif:                                            ; preds = %break, %loop1
-  br label %loop1
+else:                                             ; preds = %loop
+  br label %after_loop
 
 break:                                            ; No predecessors!
   br label %endif
-
-then9:                                            ; preds = %after_loop2
-  br label %after_loop
-
-endif10:                                          ; preds = %break11, %after_loop2
-  br label %loop
-
-break11:                                          ; No predecessors!
-  br label %endif10
-
-loop12:                                           ; preds = %endif30, %after_loop
-  %16 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  store i32 0, i32* %16
-  br label %loop14
-
-after_loop13:                                     ; preds = %then29
-  %17 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %18 = getelementptr inbounds [3 x [3 x i32]], [3 x [3 x i32]]* %17, i32 0, i32 0
-  %isSymmetric = call i32 @isSymmetric(%struct_main* %new_frame, [3 x i32]* %18)
-  br i32 %isSymmetric, label %then32, label %else
-
-loop14:                                           ; preds = %endif23, %loop12
-  %19 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j16 = load i32, i32* %19
-  %20 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i17 = load i32, i32* %20
-  %21 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %22 = getelementptr inbounds [3 x [3 x i32]], [3 x [3 x i32]]* %21, i32 0, i32 %i17
-  %23 = getelementptr inbounds [3 x i32], [3 x i32]* %22, i32 0, i32 %j16
-  %24 = load i32, i32* %23
-  call void @writeInteger(i32 %24)
-  call void @writeChar(i8 32)
-  %25 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j18 = load i32, i32* %25
-  %addtmp19 = add i32 %j18, 1
-  %26 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  store i32 %addtmp19, i32* %26
-  %27 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %j20 = load i32, i32* %27
-  %greaterorequaltmp21 = icmp sge i32 %j20, 3
-  br i1 %greaterorequaltmp21, label %then22, label %endif23
-
-after_loop15:                                     ; preds = %then22
-  call void @writeChar(i8 10)
-  %28 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i25 = load i32, i32* %28
-  %addtmp26 = add i32 %i25, 1
-  %29 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 %addtmp26, i32* %29
-  %30 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i27 = load i32, i32* %30
-  %greaterorequaltmp28 = icmp sge i32 %i27, 3
-  br i1 %greaterorequaltmp28, label %then29, label %endif30
-
-then22:                                           ; preds = %loop14
-  br label %after_loop15
-
-endif23:                                          ; preds = %break24, %loop14
-  br label %loop14
-
-break24:                                          ; No predecessors!
-  br label %endif23
-
-then29:                                           ; preds = %after_loop15
-  br label %after_loop13
-
-endif30:                                          ; preds = %break31, %after_loop15
-  br label %loop12
-
-break31:                                          ; No predecessors!
-  br label %endif30
-
-then32:                                           ; preds = %after_loop13
-  call void @writeString(i8* getelementptr inbounds ([25 x i8], [25 x i8]* @1, i32 0, i32 0))
-  br label %endif33
-
-endif33:                                          ; preds = %else, %then32
-  %31 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %32 = getelementptr inbounds [3 x [3 x i32]], [3 x [3 x i32]]* %31, i32 0, i32 0
-  %isTriangular = call i32 @isTriangular(%struct_main* %new_frame, [3 x i32]* %32)
-  %33 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 %isTriangular, i32* %33
-  %34 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i34 = load i32, i32* %34
-  %equaltmp = icmp eq i32 %i34, 0
-  br i1 %equaltmp, label %then35, label %elif
-
-else:                                             ; preds = %after_loop13
-  call void @writeString(i8* getelementptr inbounds ([29 x i8], [29 x i8]* @2, i32 0, i32 0))
-  br label %endif33
-
-then35:                                           ; preds = %endif33
-  call void @writeString(i8* getelementptr inbounds ([30 x i8], [30 x i8]* @3, i32 0, i32 0))
-  br label %endif36
-
-endif36:                                          ; preds = %in_elif47, %next_elif43, %in_elif42, %in_elif, %then35
-  br label %return
-
-elif:                                             ; preds = %endif33
-  %35 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i37 = load i32, i32* %35
-  %equaltmp38 = icmp eq i32 %i37, 1
-  %elif_cond = icmp ne i1 %equaltmp38, i32 0
-  br i1 %elif_cond, label %in_elif, label %next_elif
-
-in_elif:                                          ; preds = %elif
-  call void @writeString(i8* getelementptr inbounds ([32 x i8], [32 x i8]* @4, i32 0, i32 0))
-  br label %endif36
-
-next_elif:                                        ; preds = %elif
-  %36 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i39 = load i32, i32* %36
-  %equaltmp40 = icmp eq i32 %i39, 2
-  %elif_cond41 = icmp ne i1 %equaltmp40, i32 0
-  br i1 %elif_cond41, label %in_elif42, label %next_elif43
-
-in_elif42:                                        ; preds = %next_elif
-  call void @writeString(i8* getelementptr inbounds ([32 x i8], [32 x i8]* @5, i32 0, i32 0))
-  br label %endif36
-
-next_elif43:                                      ; preds = %next_elif
-  %37 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i44 = load i32, i32* %37
-  %equaltmp45 = icmp eq i32 %i44, 3
-  %elif_cond46 = icmp ne i1 %equaltmp45, i32 0
-  br i1 %elif_cond46, label %in_elif47, label %endif36
-
-in_elif47:                                        ; preds = %next_elif43
-  call void @writeString(i8* getelementptr inbounds ([53 x i8], [53 x i8]* @6, i32 0, i32 0))
-  br label %endif36
 }
 
-define i32 @isSymmetric(%struct_main* %previous, [3 x [3 x i32]]* %a) {
+define void @quicksort(%struct_main* %previous, i32* %arr, i32 %low, i32 %high) {
 entry:
-  %new_frame = alloca %struct_isSymmetric
-  %0 = alloca i32
-  %1 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 0
-  store %struct_main* %previous, %struct_main** %1
-  %2 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 1
-  store [3 x [3 x i32]]* %a, [3 x [3 x i32]]** %2
-  %3 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  store i32 0, i32* %3
+  %new_frame = alloca %struct_quicksort
+  %0 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %0
+  %1 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  store i32* %arr, i32** %1
+  %2 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  store i32 %low, i32* %2
+  %3 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
+  store i32 %high, i32* %3
+  %4 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  %low1 = load i32, i32* %4
+  %5 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
+  %high2 = load i32, i32* %5
+  %lowertmp = icmp slt i32 %low1, %high2
+  br i1 %lowertmp, label %then, label %endif
+
+return:                                           ; preds = %endif
+  ret void
+
+then:                                             ; preds = %entry
+  %6 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  %low3 = load i32, i32* %6
+  %7 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
+  store i32 %low3, i32* %7
+  %8 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  %low4 = load i32, i32* %8
+  %9 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  store i32 %low4, i32* %9
+  %10 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
+  %high5 = load i32, i32* %10
+  %11 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  store i32 %high5, i32* %11
   br label %loop
 
-return:                                           ; preds = %after_return18, %after_loop, %then
-  %4 = load i32, i32* %0
-  ret i32 %4
-
-loop:                                             ; preds = %endif16, %entry
-  %5 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  %i = load i32, i32* %5
-  %addtmp = add i32 %i, 1
-  %6 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  store i32 %addtmp, i32* %6
-  br label %loop1
-
-after_loop:                                       ; preds = %then15
-  store i32 1, i32* %0
+endif:                                            ; preds = %after_loop, %entry
   br label %return
 
-loop1:                                            ; preds = %endif10, %loop
-  %7 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  %j = load i32, i32* %7
-  %8 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  %i3 = load i32, i32* %8
-  %9 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 1
-  %10 = load [3 x [3 x i32]]*, [3 x [3 x i32]]** %9
-  %11 = getelementptr inbounds [3 x i32], [3 x [3 x i32]]* %10, i32 %i3
-  %12 = load [3 x i32], [3 x i32]* %11
-  %13 = load [3 x i32], [3 x i32]* %11
-  %14 = getelementptr inbounds i32, [3 x i32] %13, i32 %j
-  %15 = load i32, i32* %14
-  %16 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  %i4 = load i32, i32* %16
-  %17 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  %j5 = load i32, i32* %17
-  %18 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 1
-  %19 = load [3 x [3 x i32]]*, [3 x [3 x i32]]** %18
-  %20 = getelementptr inbounds [3 x i32], [3 x [3 x i32]]* %19, i32 %j5
-  %21 = load [3 x i32], [3 x i32]* %20
-  %22 = load [3 x i32], [3 x i32]* %20
-  %23 = getelementptr inbounds i32, [3 x i32] %22, i32 %i4
-  %24 = load i32, i32* %23
-  %nequaltmp = icmp ne i32 %15, %24
-  br i1 %nequaltmp, label %then, label %endif
+loop:                                             ; preds = %endif37, %then
+  %12 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i = load i32, i32* %12
+  %13 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j = load i32, i32* %13
+  %greatertmp = icmp sgt i32 %i, %j
+  br i1 %greatertmp, label %then6, label %endif7
 
-after_loop2:                                      ; preds = %then9
-  %25 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  %i11 = load i32, i32* %25
-  %addtmp12 = add i32 %i11, 1
-  %26 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  store i32 %addtmp12, i32* %26
-  %27 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 2
-  %i13 = load i32, i32* %27
-  %greaterorequaltmp14 = icmp sge i32 %i13, 2
-  br i1 %greaterorequaltmp14, label %then15, label %endif16
-
-then:                                             ; preds = %loop1
-  store i32 0, i32* %0
-  br label %return
-
-endif:                                            ; preds = %after_return, %loop1
-  %28 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  %j6 = load i32, i32* %28
-  %addtmp7 = add i32 %j6, 1
-  %29 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  store i32 %addtmp7, i32* %29
-  %30 = getelementptr %struct_isSymmetric, %struct_isSymmetric* %new_frame, i32 0, i32 3
-  %j8 = load i32, i32* %30
-  %greaterorequaltmp = icmp sge i32 %j8, 3
-  br i1 %greaterorequaltmp, label %then9, label %endif10
-
-after_return:                                     ; No predecessors!
-  br label %endif
-
-then9:                                            ; preds = %endif
-  br label %after_loop2
-
-endif10:                                          ; preds = %break, %endif
-  br label %loop1
-
-break:                                            ; No predecessors!
-  br label %endif10
-
-then15:                                           ; preds = %after_loop2
-  br label %after_loop
-
-endif16:                                          ; preds = %break17, %after_loop2
-  br label %loop
-
-break17:                                          ; No predecessors!
-  br label %endif16
-
-after_return18:                                   ; No predecessors!
-  br label %return
-}
-
-define i32 @isTriangular(%struct_main* %previous, [3 x [3 x i32]]* %a) {
-entry:
-  %new_frame = alloca %struct_isTriangular
-  %0 = alloca i32
-  %1 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 0
-  store %struct_main* %previous, %struct_main** %1
-  %2 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 1
-  store [3 x [3 x i32]]* %a, [3 x [3 x i32]]** %2
-  %3 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 2
-  store i32 1, i32* %3
-  %4 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  store i32 0, i32* %4
-  br label %loop
-
-return:                                           ; preds = %after_return, %after_loop18
-  %5 = load i32, i32* %0
-  ret i32 %5
-
-loop:                                             ; preds = %endif15, %entry
-  %6 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i = load i32, i32* %6
-  %addtmp = add i32 %i, 1
-  %7 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  store i32 %addtmp, i32* %7
-  br label %loop1
-
-after_loop:                                       ; preds = %then14
-  %8 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 3
-  store i32 2, i32* %8
-  %9 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  store i32 1, i32* %9
-  br label %loop17
-
-loop1:                                            ; preds = %endif8, %loop
-  %10 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j = load i32, i32* %10
-  %11 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i3 = load i32, i32* %11
-  %12 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 1
-  %13 = load [3 x [3 x i32]]*, [3 x [3 x i32]]** %12
-  %14 = getelementptr inbounds [3 x i32], [3 x [3 x i32]]* %13, i32 %i3
-  %15 = load [3 x i32], [3 x i32]* %14
-  %16 = load [3 x i32], [3 x i32]* %14
-  %17 = getelementptr inbounds i32, [3 x i32] %16, i32 %j
+after_loop:                                       ; preds = %then6
+  %14 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j42 = load i32, i32* %14
+  %15 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %16 = load i32*, i32** %15
+  %17 = getelementptr inbounds i32, i32* %16, i32 %j42
   %18 = load i32, i32* %17
-  %nequaltmp = icmp ne i32 %18, 0
-  br i1 %nequaltmp, label %then, label %endif
-
-after_loop2:                                      ; preds = %then7, %then
-  %19 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i10 = load i32, i32* %19
-  %addtmp11 = add i32 %i10, 1
-  %20 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  store i32 %addtmp11, i32* %20
-  %21 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i12 = load i32, i32* %21
-  %greaterorequaltmp13 = icmp sge i32 %i12, 2
-  br i1 %greaterorequaltmp13, label %then14, label %endif15
-
-then:                                             ; preds = %loop1
-  %22 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 2
-  store i32 0, i32* %22
-  br label %after_loop2
-
-endif:                                            ; preds = %break, %loop1
-  %23 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j4 = load i32, i32* %23
-  %addtmp5 = add i32 %j4, 1
-  %24 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  store i32 %addtmp5, i32* %24
-  %25 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j6 = load i32, i32* %25
-  %greaterorequaltmp = icmp sge i32 %j6, 3
-  br i1 %greaterorequaltmp, label %then7, label %endif8
-
-break:                                            ; No predecessors!
+  %19 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
+  store i32 %18, i32* %19
+  %20 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
+  %pivot43 = load i32, i32* %20
+  %21 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %22 = load i32*, i32** %21
+  %23 = getelementptr inbounds i32, i32* %22, i32 %pivot43
+  %24 = load i32, i32* %23
+  %25 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j44 = load i32, i32* %25
+  %26 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %27 = load i32*, i32** %26
+  %28 = getelementptr inbounds i32, i32* %27, i32 %j44
+  store i32 %24, i32* %28
+  %29 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
+  %temp45 = load i32, i32* %29
+  %30 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
+  %pivot46 = load i32, i32* %30
+  %31 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %32 = load i32*, i32** %31
+  %33 = getelementptr inbounds i32, i32* %32, i32 %pivot46
+  store i32 %temp45, i32* %33
+  %34 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
+  %previous47 = load %struct_main*, %struct_main** %34
+  %35 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %arr48 = load i32*, i32** %35
+  %36 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  %low49 = load i32, i32* %36
+  %37 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j50 = load i32, i32* %37
+  %subtmp51 = sub i32 %j50, 1
+  call void @quicksort(%struct_main* %previous47, i32* %arr48, i32 %low49, i32 %subtmp51)
+  %38 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
+  %previous52 = load %struct_main*, %struct_main** %38
+  %39 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %arr53 = load i32*, i32** %39
+  %40 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j54 = load i32, i32* %40
+  %addtmp55 = add i32 %j54, 1
+  %41 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
+  %high56 = load i32, i32* %41
+  call void @quicksort(%struct_main* %previous52, i32* %arr53, i32 %addtmp55, i32 %high56)
   br label %endif
 
-then7:                                            ; preds = %endif
-  br label %after_loop2
-
-endif8:                                           ; preds = %break9, %endif
-  br label %loop1
-
-break9:                                           ; No predecessors!
-  br label %endif8
-
-then14:                                           ; preds = %after_loop2
+then6:                                            ; preds = %loop
   br label %after_loop
 
-endif15:                                          ; preds = %break16, %after_loop2
-  br label %loop
+endif7:                                           ; preds = %break, %loop
+  br label %loop8
+
+break:                                            ; No predecessors!
+  br label %endif7
+
+loop8:                                            ; preds = %endif15, %endif7
+  %42 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i10 = load i32, i32* %42
+  %43 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %44 = load i32*, i32** %43
+  %45 = getelementptr inbounds i32, i32* %44, i32 %i10
+  %46 = load i32, i32* %45
+  %47 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
+  %pivot = load i32, i32* %47
+  %48 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %49 = load i32*, i32** %48
+  %50 = getelementptr inbounds i32, i32* %49, i32 %pivot
+  %51 = load i32, i32* %50
+  %lowerorequaltmp = icmp sle i32 %46, %51
+  %52 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i11 = load i32, i32* %52
+  %53 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
+  %high12 = load i32, i32* %53
+  %lowerorequaltmp13 = icmp sle i32 %i11, %high12
+  br i1 %lowerorequaltmp, label %right_cond_and, label %result_and
+
+after_loop9:                                      ; preds = %then14
+  br label %loop18
+
+right_cond_and:                                   ; preds = %loop8
+  br label %result_and
+
+result_and:                                       ; preds = %right_cond_and, %loop8
+  %and = phi i8 [ 0, %loop8 ], [ %lowerorequaltmp13, %right_cond_and ]
+  %cond_nottmp = icmp eq i8 %and, 0
+  br i1 %cond_nottmp, label %then14, label %endif15
+
+then14:                                           ; preds = %result_and
+  br label %after_loop9
+
+endif15:                                          ; preds = %break16, %result_and
+  %54 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i17 = load i32, i32* %54
+  %addtmp = add i32 %i17, 1
+  %55 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  store i32 %addtmp, i32* %55
+  br label %loop8
 
 break16:                                          ; No predecessors!
   br label %endif15
 
-loop17:                                           ; preds = %endif40, %after_loop
-  %26 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  store i32 0, i32* %26
-  br label %loop19
+loop18:                                           ; preds = %endif30, %after_loop9
+  %56 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j20 = load i32, i32* %56
+  %57 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %58 = load i32*, i32** %57
+  %59 = getelementptr inbounds i32, i32* %58, i32 %j20
+  %60 = load i32, i32* %59
+  %61 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
+  %pivot21 = load i32, i32* %61
+  %62 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %63 = load i32*, i32** %62
+  %64 = getelementptr inbounds i32, i32* %63, i32 %pivot21
+  %65 = load i32, i32* %64
+  %greatertmp22 = icmp sgt i32 %60, %65
+  %66 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j23 = load i32, i32* %66
+  %67 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
+  %low24 = load i32, i32* %67
+  %greaterorequaltmp = icmp sge i32 %j23, %low24
+  br i1 %greatertmp22, label %right_cond_and25, label %result_and26
 
-after_loop18:                                     ; preds = %then39
-  %27 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 2
-  %lower = load i32, i32* %27
-  %28 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 3
-  %upper = load i32, i32* %28
-  %addtmp42 = add i32 %lower, %upper
-  store i32 %addtmp42, i32* %0
+after_loop19:                                     ; preds = %then29
+  %68 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i33 = load i32, i32* %68
+  %69 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j34 = load i32, i32* %69
+  %lowertmp35 = icmp slt i32 %i33, %j34
+  br i1 %lowertmp35, label %then36, label %endif37
+
+right_cond_and25:                                 ; preds = %loop18
+  br label %result_and26
+
+result_and26:                                     ; preds = %right_cond_and25, %loop18
+  %and27 = phi i8 [ 0, %loop18 ], [ %greaterorequaltmp, %right_cond_and25 ]
+  %cond_nottmp28 = icmp eq i8 %and27, 0
+  br i1 %cond_nottmp28, label %then29, label %endif30
+
+then29:                                           ; preds = %result_and26
+  br label %after_loop19
+
+endif30:                                          ; preds = %break31, %result_and26
+  %70 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j32 = load i32, i32* %70
+  %subtmp = sub i32 %j32, 1
+  %71 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  store i32 %subtmp, i32* %71
+  br label %loop18
+
+break31:                                          ; No predecessors!
+  br label %endif30
+
+then36:                                           ; preds = %after_loop19
+  %72 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i38 = load i32, i32* %72
+  %73 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %74 = load i32*, i32** %73
+  %75 = getelementptr inbounds i32, i32* %74, i32 %i38
+  %76 = load i32, i32* %75
+  %77 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
+  store i32 %76, i32* %77
+  %78 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j39 = load i32, i32* %78
+  %79 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %80 = load i32*, i32** %79
+  %81 = getelementptr inbounds i32, i32* %80, i32 %j39
+  %82 = load i32, i32* %81
+  %83 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
+  %i40 = load i32, i32* %83
+  %84 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %85 = load i32*, i32** %84
+  %86 = getelementptr inbounds i32, i32* %85, i32 %i40
+  store i32 %82, i32* %86
+  %87 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
+  %temp = load i32, i32* %87
+  %88 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
+  %j41 = load i32, i32* %88
+  %89 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
+  %90 = load i32*, i32** %89
+  %91 = getelementptr inbounds i32, i32* %90, i32 %j41
+  store i32 %temp, i32* %91
+  br label %endif37
+
+endif37:                                          ; preds = %then36, %after_loop19
+  br label %loop
+}
+
+define void @writeArray(%struct_main* %previous, i32 %n, i32* %x) {
+entry:
+  %new_frame = alloca %struct_writeArray
+  %0 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %0
+  %1 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 1
+  store i32 %n, i32* %1
+  %2 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 2
+  store i32* %x, i32** %2
+  %3 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  store i32 0, i32* %3
+  br label %loop
+
+return:                                           ; preds = %after_loop
+  ret void
+
+loop:                                             ; preds = %endif, %entry
+  %4 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %i = load i32, i32* %4
+  %5 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 1
+  %n1 = load i32, i32* %5
+  %lowertmp = icmp slt i32 %i, %n1
+  br i1 %lowertmp, label %then, label %else
+
+after_loop:                                       ; preds = %else
+  call void @writeString(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @1, i32 0, i32 0))
   br label %return
 
-loop19:                                           ; preds = %endif33, %loop17
-  %29 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j21 = load i32, i32* %29
-  %30 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i22 = load i32, i32* %30
-  %31 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 1
-  %32 = load [3 x [3 x i32]]*, [3 x [3 x i32]]** %31
-  %33 = getelementptr inbounds [3 x i32], [3 x [3 x i32]]* %32, i32 %i22
-  %34 = load [3 x i32], [3 x i32]* %33
-  %35 = load [3 x i32], [3 x i32]* %33
-  %36 = getelementptr inbounds i32, [3 x i32] %35, i32 %j21
-  %37 = load i32, i32* %36
-  %nequaltmp23 = icmp ne i32 %37, 0
-  br i1 %nequaltmp23, label %then24, label %endif25
+then:                                             ; preds = %loop
+  %6 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %i2 = load i32, i32* %6
+  %greatertmp = icmp sgt i32 %i2, 0
+  br i1 %greatertmp, label %then3, label %endif4
 
-after_loop20:                                     ; preds = %then32, %then24
-  %38 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i35 = load i32, i32* %38
-  %addtmp36 = add i32 %i35, 1
-  %39 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  store i32 %addtmp36, i32* %39
-  %40 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i37 = load i32, i32* %40
-  %greaterorequaltmp38 = icmp sge i32 %i37, 3
-  br i1 %greaterorequaltmp38, label %then39, label %endif40
+endif:                                            ; preds = %break, %endif4
+  br label %loop
 
-then24:                                           ; preds = %loop19
-  %41 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 3
-  store i32 0, i32* %41
-  br label %after_loop20
+else:                                             ; preds = %loop
+  br label %after_loop
 
-endif25:                                          ; preds = %break26, %loop19
-  %42 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j27 = load i32, i32* %42
-  %addtmp28 = add i32 %j27, 1
-  %43 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  store i32 %addtmp28, i32* %43
-  %44 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 5
-  %j29 = load i32, i32* %44
-  %45 = getelementptr %struct_isTriangular, %struct_isTriangular* %new_frame, i32 0, i32 4
-  %i30 = load i32, i32* %45
-  %greaterorequaltmp31 = icmp sge i32 %j29, %i30
-  br i1 %greaterorequaltmp31, label %then32, label %endif33
+then3:                                            ; preds = %then
+  call void @writeString(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @0, i32 0, i32 0))
+  br label %endif4
 
-break26:                                          ; No predecessors!
-  br label %endif25
+endif4:                                           ; preds = %then3, %then
+  %7 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %i5 = load i32, i32* %7
+  %8 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 2
+  %9 = load i32*, i32** %8
+  %10 = getelementptr inbounds i32, i32* %9, i32 %i5
+  %11 = load i32, i32* %10
+  call void @writeInteger(i32 %11)
+  %12 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %i6 = load i32, i32* %12
+  %addtmp = add i32 %i6, 1
+  %13 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  store i32 %addtmp, i32* %13
+  br label %endif
 
-then32:                                           ; preds = %endif25
-  br label %after_loop20
-
-endif33:                                          ; preds = %break34, %endif25
-  br label %loop19
-
-break34:                                          ; No predecessors!
-  br label %endif33
-
-then39:                                           ; preds = %after_loop20
-  br label %after_loop18
-
-endif40:                                          ; preds = %break41, %after_loop20
-  br label %loop17
-
-break41:                                          ; No predecessors!
-  br label %endif40
-
-after_return:                                     ; No predecessors!
-  br label %return
+break:                                            ; No predecessors!
+  br label %endif
 }

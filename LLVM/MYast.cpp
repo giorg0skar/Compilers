@@ -247,11 +247,16 @@ int loadByReference = 0;
 Function::arg_iterator Callee_iter;
 
 // Useful LLVM types.
+static Type *i1 = IntegerType::get(TheContext, 1);
 static Type *i8 = IntegerType::get(TheContext, 8);
 static Type *i32 = IntegerType::get(TheContext, 32);
 static Type *i64 = IntegerType::get(TheContext, 64);
 
 // Useful LLVM helper functions.
+inline ConstantInt *c1(int n)
+{
+    return ConstantInt::get(TheContext, APInt(1, n, true));
+}
 inline ConstantInt *c8(char c)
 {
     return ConstantInt::get(TheContext, APInt(8, c, true));
@@ -1642,7 +1647,7 @@ Value *ast_compile(ast t)
         }
 
         gep =  Builder.CreateGEP(record, std::vector<Value *>{c32(0), c32(indx)}, "");
-        if (isArray(node->type)) {
+        if (isArray(node->type) || isIArray(node->type)) {
             // Function *TheFunction = Builder.GetInsertBlock()->getParent();
             // Function::arg_iterator arg_it = TheFunction->arg_begin();
             // while(arg_it != TheFunction->arg_end()) {
@@ -1655,9 +1660,15 @@ Value *ast_compile(ast t)
             //     arg_it++;
             // }
             //if indx <= paramsIndex then the array is a parameter and thus it passes by reference
-            if (indx <= paramsIndex.find(record)->second) gep = Builder.CreateLoad(gep, "");
+            auto iter = idxlist.rbegin();
+            if (indx <= paramsIndex.find(record)->second) {
+                gep = Builder.CreateLoad(gep, "");
+                Type *arrType = translateType(node->type->refType);
+                gep = Builder.CreateInBoundsGEP(arrType, gep, *iter, "");
+                iter++;
+            }
 
-            for(auto iter=idxlist.rbegin(); iter != idxlist.rend(); ++iter) {
+            for(; iter != idxlist.rend(); ++iter) {
                 gep = Builder.CreateInBoundsGEP(gep, std::vector<Value *>{c32(0), *iter}, "");
             }
         }
@@ -2215,7 +2226,8 @@ Value *ast_compile(ast t)
         if (res = dyn_cast<ConstantInt>(l)) {
             return Builder.CreateICmpEQ(l, c32(0), "cond_nottmp");
         }
-        return Builder.CreateICmpEQ(l, c8(0), "cond_nottmp");
+        //PHINode *phi_iter = Builder.CreatePHI(i32, 2, "not");
+        return Builder.CreateICmpEQ(l, c1(0), "cond_nottmp");
     }
     case AND:
     {
@@ -2245,15 +2257,18 @@ Value *ast_compile(ast t)
         Function *TheFunction = Builder.GetInsertBlock()->getParent();
         BasicBlock *RightBB = BasicBlock::Create(TheContext, "right_cond_and", TheFunction);
         BasicBlock *ResultBB = BasicBlock::Create(TheContext, "result_and", TheFunction);
-        PHINode *phi_iter = Builder.CreatePHI(i32, 2, "and");
-        phi_iter->addIncoming(c32(0), Builder.GetInsertBlock());
+        BasicBlock *BB = Builder.GetInsertBlock();
 
         Builder.CreateCondBr(l, RightBB, ResultBB);
         Builder.SetInsertPoint(RightBB);
 
-        Value *right_op;
+        //Value *right_op;
         Builder.CreateBr(ResultBB);
         Builder.SetInsertPoint(ResultBB);
+
+        PHINode *phi_iter = Builder.CreatePHI(i1, 2, "and");
+        Value *itsfalse = Builder.CreateICmpNE(c32(0), c32(0), "");
+        phi_iter->addIncoming(itsfalse, BB);
         phi_iter->addIncoming(r, RightBB);
 
         Value *and_result = phi_iter;
