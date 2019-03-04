@@ -1,3 +1,1 @@
-def main
-    var a is int[10]
-    skip
+def main var a is int[10] skip

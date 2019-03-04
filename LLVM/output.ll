@@ -2,12 +2,16 @@
 source_filename = "dana program"
 
 %dummy = type opaque
-%struct_main = type { %dummy*, i32, i32, [24 x i32] }
-%struct_quicksort = type { %struct_main*, i32*, i32, i32, i32, i32, i32, i32 }
-%struct_writeArray = type { %struct_main*, i32, i32*, i32 }
+%struct_main = type { %dummy*, [15 x i32], [16 x i32], [16 x i32], i32, i32, i32, i32, i8 }
+%struct_initializeSet = type { %struct_main*, i32* }
+%struct_addElement = type { %struct_main*, i32*, i32, i32 }
+%struct_printSet = type { %struct_main*, i32*, i32 }
+%struct_log3binary = type { %struct_main*, i32, i32, i32, i32, i32 }
+%struct_getSum = type { %struct_main*, i32 }
 
-@0 = private constant [3 x i8] c", \00"
-@1 = private constant [2 x i8] c"\0A\00"
+@0 = private constant [2 x i8] c" \00"
+@1 = private constant [7 x i8] c"[] []\0A\00"
+@2 = private constant [2 x i8] c"\0A\00"
 
 declare void @writeInteger(i32)
 
@@ -43,316 +47,225 @@ entry:
   %0 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 0
   store %dummy* %previous, %dummy** %0
   %1 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  store i32 65, i32* %1
-  %2 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 0, i32* %2
+  %2 = getelementptr inbounds [15 x i32], [15 x i32]* %1, i32 0, i32 0
+  store i32 1, i32* %2
+  %3 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  store i32 1, i32* %3
   br label %loop
 
-return:                                           ; preds = %after_loop
+return:                                           ; preds = %after_loop5, %then25
   ret void
 
 loop:                                             ; preds = %endif, %entry
-  %3 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i = load i32, i32* %3
-  %lowertmp = icmp slt i32 %i, 16
-  br i1 %lowertmp, label %then, label %else
+  %4 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  %i = load i32, i32* %4
+  %greaterorequaltmp = icmp sge i32 %i, 15
+  br i1 %greaterorequaltmp, label %then, label %endif
 
-after_loop:                                       ; preds = %else
-  %4 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %5 = getelementptr inbounds [24 x i32], [24 x i32]* %4, i32 0, i32 0
-  call void @writeArray(%struct_main* %new_frame, i32 16, i32* %5)
-  %6 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %7 = getelementptr inbounds [24 x i32], [24 x i32]* %6, i32 0, i32 0
-  call void @quicksort(%struct_main* %new_frame, i32* %7, i32 0, i32 15)
-  %8 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %9 = getelementptr inbounds [24 x i32], [24 x i32]* %8, i32 0, i32 0
-  call void @writeArray(%struct_main* %new_frame, i32 16, i32* %9)
-  br label %return
+after_loop:                                       ; preds = %then
+  %5 = call i32 @readInteger()
+  %6 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 6
+  store i32 %5, i32* %6
+  %7 = call i32 @readInteger()
+  %8 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  store i32 %7, i32* %8
+  %9 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %10 = getelementptr inbounds [16 x i32], [16 x i32]* %9, i32 0, i32 0
+  call void @initializeSet(%struct_main* %new_frame, i32* %10)
+  %11 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %12 = getelementptr inbounds [16 x i32], [16 x i32]* %11, i32 0, i32 0
+  call void @initializeSet(%struct_main* %new_frame, i32* %12)
+  %13 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 8
+  store i8 1, i8* %13
+  br label %loop4
 
 then:                                             ; preds = %loop
-  %10 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %seed = load i32, i32* %10
-  %multmp = mul i32 %seed, 137
-  %addtmp = add i32 %multmp, 220
-  %11 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i1 = load i32, i32* %11
-  %addtmp2 = add i32 %addtmp, %i1
-  %modtmp = srem i32 %addtmp2, 145
-  %12 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  store i32 %modtmp, i32* %12
-  %13 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
-  %seed3 = load i32, i32* %13
-  %14 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i4 = load i32, i32* %14
-  %15 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
-  %16 = getelementptr inbounds [24 x i32], [24 x i32]* %15, i32 0, i32 %i4
-  store i32 %seed3, i32* %16
-  %17 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  %i5 = load i32, i32* %17
-  %addtmp6 = add i32 %i5, 1
-  %18 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
-  store i32 %addtmp6, i32* %18
-  br label %endif
-
-endif:                                            ; preds = %break, %then
-  br label %loop
-
-else:                                             ; preds = %loop
   br label %after_loop
+
+endif:                                            ; preds = %break, %loop
+  %14 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  %i1 = load i32, i32* %14
+  %subtmp = sub i32 %i1, 1
+  %15 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %16 = getelementptr inbounds [15 x i32], [15 x i32]* %15, i32 0, i32 %subtmp
+  %17 = load i32, i32* %16
+  %multmp = mul i32 %17, 3
+  %18 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  %i2 = load i32, i32* %18
+  %19 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %20 = getelementptr inbounds [15 x i32], [15 x i32]* %19, i32 0, i32 %i2
+  store i32 %multmp, i32* %20
+  %21 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  %i3 = load i32, i32* %21
+  %addtmp = add i32 %i3, 1
+  %22 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 4
+  store i32 %addtmp, i32* %22
+  br label %loop
 
 break:                                            ; No predecessors!
   br label %endif
-}
 
-define void @quicksort(%struct_main* %previous, i32* %arr, i32 %low, i32 %high) {
-entry:
-  %new_frame = alloca %struct_quicksort
-  %0 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
-  store %struct_main* %previous, %struct_main** %0
-  %1 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  store i32* %arr, i32** %1
-  %2 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  store i32 %low, i32* %2
-  %3 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
-  store i32 %high, i32* %3
-  %4 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  %low1 = load i32, i32* %4
-  %5 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
-  %high2 = load i32, i32* %5
-  %lowertmp = icmp slt i32 %low1, %high2
-  br i1 %lowertmp, label %then, label %endif
+loop4:                                            ; preds = %endif12, %after_loop
+  %23 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  %M = load i32, i32* %23
+  %equaltmp = icmp eq i32 %M, 0
+  br i1 %equaltmp, label %then6, label %endif7
 
-return:                                           ; preds = %endif
-  ret void
-
-then:                                             ; preds = %entry
-  %6 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  %low3 = load i32, i32* %6
-  %7 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
-  store i32 %low3, i32* %7
-  %8 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  %low4 = load i32, i32* %8
-  %9 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  store i32 %low4, i32* %9
-  %10 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
-  %high5 = load i32, i32* %10
-  %11 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  store i32 %high5, i32* %11
-  br label %loop
-
-endif:                                            ; preds = %after_loop, %entry
+after_loop5:                                      ; preds = %then6
+  %24 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %25 = getelementptr inbounds [16 x i32], [16 x i32]* %24, i32 0, i32 0
+  call void @printSet(%struct_main* %new_frame, i32* %25)
+  call void @writeChar(i8 10)
+  %26 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %27 = getelementptr inbounds [16 x i32], [16 x i32]* %26, i32 0, i32 0
+  call void @printSet(%struct_main* %new_frame, i32* %27)
+  call void @writeString(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @2, i32 0, i32 0))
   br label %return
 
-loop:                                             ; preds = %endif37, %then
-  %12 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i = load i32, i32* %12
-  %13 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j = load i32, i32* %13
-  %greatertmp = icmp sgt i32 %i, %j
-  br i1 %greatertmp, label %then6, label %endif7
+then6:                                            ; preds = %loop4
+  br label %after_loop5
 
-after_loop:                                       ; preds = %then6
-  %14 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j42 = load i32, i32* %14
-  %15 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %16 = load i32*, i32** %15
-  %17 = getelementptr inbounds i32, i32* %16, i32 %j42
-  %18 = load i32, i32* %17
-  %19 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
-  store i32 %18, i32* %19
-  %20 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
-  %pivot43 = load i32, i32* %20
-  %21 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %22 = load i32*, i32** %21
-  %23 = getelementptr inbounds i32, i32* %22, i32 %pivot43
-  %24 = load i32, i32* %23
-  %25 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j44 = load i32, i32* %25
-  %26 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %27 = load i32*, i32** %26
-  %28 = getelementptr inbounds i32, i32* %27, i32 %j44
-  store i32 %24, i32* %28
-  %29 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
-  %temp45 = load i32, i32* %29
-  %30 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
-  %pivot46 = load i32, i32* %30
-  %31 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %32 = load i32*, i32** %31
-  %33 = getelementptr inbounds i32, i32* %32, i32 %pivot46
-  store i32 %temp45, i32* %33
-  %34 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
-  %previous47 = load %struct_main*, %struct_main** %34
-  %35 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %arr48 = load i32*, i32** %35
-  %36 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  %low49 = load i32, i32* %36
-  %37 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j50 = load i32, i32* %37
-  %subtmp51 = sub i32 %j50, 1
-  call void @quicksort(%struct_main* %previous47, i32* %arr48, i32 %low49, i32 %subtmp51)
-  %38 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 0
-  %previous52 = load %struct_main*, %struct_main** %38
-  %39 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %arr53 = load i32*, i32** %39
-  %40 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j54 = load i32, i32* %40
-  %addtmp55 = add i32 %j54, 1
-  %41 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
-  %high56 = load i32, i32* %41
-  call void @quicksort(%struct_main* %previous52, i32* %arr53, i32 %addtmp55, i32 %high56)
-  br label %endif
+endif7:                                           ; preds = %break8, %loop4
+  %28 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  %M9 = load i32, i32* %28
+  %29 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 6
+  %N = load i32, i32* %29
+  %log3binary = call i32 @log3binary(%struct_main* %new_frame, i32 %M9, i32 %N)
+  %30 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  store i32 %log3binary, i32* %30
+  %31 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  %M10 = load i32, i32* %31
+  %32 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k = load i32, i32* %32
+  %getSum = call i32 @getSum(%struct_main* %new_frame, i32 %k)
+  %lowerorequaltmp = icmp sle i32 %M10, %getSum
+  br i1 %lowerorequaltmp, label %then11, label %else
 
-then6:                                            ; preds = %loop
-  br label %after_loop
-
-endif7:                                           ; preds = %break, %loop
-  br label %loop8
-
-break:                                            ; No predecessors!
+break8:                                           ; No predecessors!
   br label %endif7
 
-loop8:                                            ; preds = %endif15, %endif7
-  %42 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i10 = load i32, i32* %42
-  %43 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %44 = load i32*, i32** %43
-  %45 = getelementptr inbounds i32, i32* %44, i32 %i10
-  %46 = load i32, i32* %45
-  %47 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
-  %pivot = load i32, i32* %47
-  %48 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %49 = load i32*, i32** %48
-  %50 = getelementptr inbounds i32, i32* %49, i32 %pivot
+then11:                                           ; preds = %endif7
+  %33 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  %M13 = load i32, i32* %33
+  %34 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k14 = load i32, i32* %34
+  %35 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %36 = getelementptr inbounds [15 x i32], [15 x i32]* %35, i32 0, i32 %k14
+  %37 = load i32, i32* %36
+  %subtmp15 = sub i32 %M13, %37
+  %38 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  store i32 %subtmp15, i32* %38
+  %39 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 8
+  %flag = load i8, i8* %39
+  br i8 %flag, label %then16, label %else18
+
+endif12:                                          ; preds = %endif33, %endif17
+  br label %loop4
+
+else:                                             ; preds = %endif7
+  %40 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k21 = load i32, i32* %40
+  %41 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 6
+  %N22 = load i32, i32* %41
+  %subtmp23 = sub i32 %N22, 1
+  %equaltmp24 = icmp eq i32 %k21, %subtmp23
+  br i1 %equaltmp24, label %then25, label %endif26
+
+then16:                                           ; preds = %then11
+  %42 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %43 = getelementptr inbounds [16 x i32], [16 x i32]* %42, i32 0, i32 0
+  %44 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k19 = load i32, i32* %44
+  call void @addElement(%struct_main* %new_frame, i32* %43, i32 %k19)
+  br label %endif17
+
+endif17:                                          ; preds = %else18, %then16
+  br label %endif12
+
+else18:                                           ; preds = %then11
+  %45 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %46 = getelementptr inbounds [16 x i32], [16 x i32]* %45, i32 0, i32 0
+  %47 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k20 = load i32, i32* %47
+  call void @addElement(%struct_main* %new_frame, i32* %46, i32 %k20)
+  br label %endif17
+
+then25:                                           ; preds = %else
+  call void @writeString(i8* getelementptr inbounds ([7 x i8], [7 x i8]* @1, i32 0, i32 0))
+  br label %return
+
+endif26:                                          ; preds = %exit, %else
+  %48 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k27 = load i32, i32* %48
+  %addtmp28 = add i32 %k27, 1
+  %49 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 1
+  %50 = getelementptr inbounds [15 x i32], [15 x i32]* %49, i32 0, i32 %addtmp28
   %51 = load i32, i32* %50
-  %lowerorequaltmp = icmp sle i32 %46, %51
-  %52 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i11 = load i32, i32* %52
-  %53 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 3
-  %high12 = load i32, i32* %53
-  %lowerorequaltmp13 = icmp sle i32 %i11, %high12
-  br i1 %lowerorequaltmp, label %right_cond_and, label %result_and
+  %52 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  %M29 = load i32, i32* %52
+  %subtmp30 = sub i32 %51, %M29
+  %53 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 7
+  store i32 %subtmp30, i32* %53
+  %54 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 8
+  %flag31 = load i8, i8* %54
+  br i8 %flag31, label %then32, label %else34
 
-after_loop9:                                      ; preds = %then14
-  br label %loop18
+exit:                                             ; No predecessors!
+  br label %endif26
 
-right_cond_and:                                   ; preds = %loop8
-  br label %result_and
+then32:                                           ; preds = %endif26
+  %55 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 2
+  %56 = getelementptr inbounds [16 x i32], [16 x i32]* %55, i32 0, i32 0
+  %57 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k35 = load i32, i32* %57
+  %addtmp36 = add i32 %k35, 1
+  call void @addElement(%struct_main* %new_frame, i32* %56, i32 %addtmp36)
+  %58 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 8
+  store i8 0, i8* %58
+  br label %endif33
 
-result_and:                                       ; preds = %right_cond_and, %loop8
-  %and = phi i8 [ 0, %loop8 ], [ %lowerorequaltmp13, %right_cond_and ]
-  %cond_nottmp = icmp eq i8 %and, 0
-  br i1 %cond_nottmp, label %then14, label %endif15
+endif33:                                          ; preds = %else34, %then32
+  br label %endif12
 
-then14:                                           ; preds = %result_and
-  br label %after_loop9
-
-endif15:                                          ; preds = %break16, %result_and
-  %54 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i17 = load i32, i32* %54
-  %addtmp = add i32 %i17, 1
-  %55 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  store i32 %addtmp, i32* %55
-  br label %loop8
-
-break16:                                          ; No predecessors!
-  br label %endif15
-
-loop18:                                           ; preds = %endif30, %after_loop9
-  %56 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j20 = load i32, i32* %56
-  %57 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %58 = load i32*, i32** %57
-  %59 = getelementptr inbounds i32, i32* %58, i32 %j20
-  %60 = load i32, i32* %59
-  %61 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 4
-  %pivot21 = load i32, i32* %61
-  %62 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %63 = load i32*, i32** %62
-  %64 = getelementptr inbounds i32, i32* %63, i32 %pivot21
-  %65 = load i32, i32* %64
-  %greatertmp22 = icmp sgt i32 %60, %65
-  %66 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j23 = load i32, i32* %66
-  %67 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 2
-  %low24 = load i32, i32* %67
-  %greaterorequaltmp = icmp sge i32 %j23, %low24
-  br i1 %greatertmp22, label %right_cond_and25, label %result_and26
-
-after_loop19:                                     ; preds = %then29
-  %68 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i33 = load i32, i32* %68
-  %69 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j34 = load i32, i32* %69
-  %lowertmp35 = icmp slt i32 %i33, %j34
-  br i1 %lowertmp35, label %then36, label %endif37
-
-right_cond_and25:                                 ; preds = %loop18
-  br label %result_and26
-
-result_and26:                                     ; preds = %right_cond_and25, %loop18
-  %and27 = phi i8 [ 0, %loop18 ], [ %greaterorequaltmp, %right_cond_and25 ]
-  %cond_nottmp28 = icmp eq i8 %and27, 0
-  br i1 %cond_nottmp28, label %then29, label %endif30
-
-then29:                                           ; preds = %result_and26
-  br label %after_loop19
-
-endif30:                                          ; preds = %break31, %result_and26
-  %70 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j32 = load i32, i32* %70
-  %subtmp = sub i32 %j32, 1
-  %71 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  store i32 %subtmp, i32* %71
-  br label %loop18
-
-break31:                                          ; No predecessors!
-  br label %endif30
-
-then36:                                           ; preds = %after_loop19
-  %72 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i38 = load i32, i32* %72
-  %73 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %74 = load i32*, i32** %73
-  %75 = getelementptr inbounds i32, i32* %74, i32 %i38
-  %76 = load i32, i32* %75
-  %77 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
-  store i32 %76, i32* %77
-  %78 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j39 = load i32, i32* %78
-  %79 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %80 = load i32*, i32** %79
-  %81 = getelementptr inbounds i32, i32* %80, i32 %j39
-  %82 = load i32, i32* %81
-  %83 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 5
-  %i40 = load i32, i32* %83
-  %84 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %85 = load i32*, i32** %84
-  %86 = getelementptr inbounds i32, i32* %85, i32 %i40
-  store i32 %82, i32* %86
-  %87 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 7
-  %temp = load i32, i32* %87
-  %88 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 6
-  %j41 = load i32, i32* %88
-  %89 = getelementptr %struct_quicksort, %struct_quicksort* %new_frame, i32 0, i32 1
-  %90 = load i32*, i32** %89
-  %91 = getelementptr inbounds i32, i32* %90, i32 %j41
-  store i32 %temp, i32* %91
-  br label %endif37
-
-endif37:                                          ; preds = %then36, %after_loop19
-  br label %loop
+else34:                                           ; preds = %endif26
+  %59 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 3
+  %60 = getelementptr inbounds [16 x i32], [16 x i32]* %59, i32 0, i32 0
+  %61 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 5
+  %k37 = load i32, i32* %61
+  %addtmp38 = add i32 %k37, 1
+  call void @addElement(%struct_main* %new_frame, i32* %60, i32 %addtmp38)
+  %62 = getelementptr %struct_main, %struct_main* %new_frame, i32 0, i32 8
+  store i8 1, i8* %62
+  br label %endif33
 }
 
-define void @writeArray(%struct_main* %previous, i32 %n, i32* %x) {
+define void @initializeSet(%struct_main* %previous, i32* %set) {
 entry:
-  %new_frame = alloca %struct_writeArray
-  %0 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 0
+  %new_frame = alloca %struct_initializeSet
+  %0 = getelementptr %struct_initializeSet, %struct_initializeSet* %new_frame, i32 0, i32 0
   store %struct_main* %previous, %struct_main** %0
-  %1 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 1
-  store i32 %n, i32* %1
-  %2 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 2
-  store i32* %x, i32** %2
-  %3 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %1 = getelementptr %struct_initializeSet, %struct_initializeSet* %new_frame, i32 0, i32 1
+  store i32* %set, i32** %1
+  %2 = getelementptr %struct_initializeSet, %struct_initializeSet* %new_frame, i32 0, i32 1
+  %3 = load i32*, i32** %2
+  %4 = getelementptr inbounds i32, i32* %3, i32 0
+  store i32 -1, i32* %4
+  br label %return
+
+return:                                           ; preds = %entry
+  ret void
+}
+
+define void @addElement(%struct_main* %previous, i32* %set, i32 %n) {
+entry:
+  %new_frame = alloca %struct_addElement
+  %0 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %0
+  %1 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 1
+  store i32* %set, i32** %1
+  %2 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 2
+  store i32 %n, i32* %2
+  %3 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
   store i32 0, i32* %3
   br label %loop
 
@@ -360,48 +273,269 @@ return:                                           ; preds = %after_loop
   ret void
 
 loop:                                             ; preds = %endif, %entry
-  %4 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
+  %4 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
   %i = load i32, i32* %4
-  %5 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 1
-  %n1 = load i32, i32* %5
-  %lowertmp = icmp slt i32 %i, %n1
-  br i1 %lowertmp, label %then, label %else
+  %5 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 1
+  %6 = load i32*, i32** %5
+  %7 = getelementptr inbounds i32, i32* %6, i32 %i
+  %8 = load i32, i32* %7
+  %equaltmp = icmp eq i32 %8, -1
+  br i1 %equaltmp, label %then, label %endif
 
-after_loop:                                       ; preds = %else
-  call void @writeString(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @1, i32 0, i32 0))
+after_loop:                                       ; preds = %then
+  %9 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 2
+  %n2 = load i32, i32* %9
+  %10 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
+  %i3 = load i32, i32* %10
+  %11 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 1
+  %12 = load i32*, i32** %11
+  %13 = getelementptr inbounds i32, i32* %12, i32 %i3
+  store i32 %n2, i32* %13
+  %14 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
+  %i4 = load i32, i32* %14
+  %addtmp5 = add i32 %i4, 1
+  %15 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 1
+  %16 = load i32*, i32** %15
+  %17 = getelementptr inbounds i32, i32* %16, i32 %addtmp5
+  store i32 -1, i32* %17
   br label %return
 
 then:                                             ; preds = %loop
-  %6 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
-  %i2 = load i32, i32* %6
-  %greatertmp = icmp sgt i32 %i2, 0
-  br i1 %greatertmp, label %then3, label %endif4
-
-endif:                                            ; preds = %break, %endif4
-  br label %loop
-
-else:                                             ; preds = %loop
   br label %after_loop
 
-then3:                                            ; preds = %then
-  call void @writeString(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @0, i32 0, i32 0))
-  br label %endif4
-
-endif4:                                           ; preds = %then3, %then
-  %7 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
-  %i5 = load i32, i32* %7
-  %8 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 2
-  %9 = load i32*, i32** %8
-  %10 = getelementptr inbounds i32, i32* %9, i32 %i5
-  %11 = load i32, i32* %10
-  call void @writeInteger(i32 %11)
-  %12 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
-  %i6 = load i32, i32* %12
-  %addtmp = add i32 %i6, 1
-  %13 = getelementptr %struct_writeArray, %struct_writeArray* %new_frame, i32 0, i32 3
-  store i32 %addtmp, i32* %13
-  br label %endif
+endif:                                            ; preds = %break, %loop
+  %18 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
+  %i1 = load i32, i32* %18
+  %addtmp = add i32 %i1, 1
+  %19 = getelementptr %struct_addElement, %struct_addElement* %new_frame, i32 0, i32 3
+  store i32 %addtmp, i32* %19
+  br label %loop
 
 break:                                            ; No predecessors!
   br label %endif
+}
+
+define void @printSet(%struct_main* %previous, i32* %set) {
+entry:
+  %new_frame = alloca %struct_printSet
+  %0 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %0
+  %1 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 1
+  store i32* %set, i32** %1
+  %2 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  store i32 0, i32* %2
+  br label %loop
+
+return:                                           ; preds = %after_loop
+  ret void
+
+loop:                                             ; preds = %endif4, %entry
+  %3 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  %i = load i32, i32* %3
+  %4 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 1
+  %5 = load i32*, i32** %4
+  %6 = getelementptr inbounds i32, i32* %5, i32 %i
+  %7 = load i32, i32* %6
+  %equaltmp = icmp eq i32 %7, -1
+  br i1 %equaltmp, label %then, label %endif
+
+after_loop:                                       ; preds = %then
+  br label %return
+
+then:                                             ; preds = %loop
+  br label %after_loop
+
+endif:                                            ; preds = %break, %loop
+  %8 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  %i1 = load i32, i32* %8
+  %9 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 1
+  %10 = load i32*, i32** %9
+  %11 = getelementptr inbounds i32, i32* %10, i32 %i1
+  %12 = load i32, i32* %11
+  call void @writeInteger(i32 %12)
+  %13 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  %i2 = load i32, i32* %13
+  %addtmp = add i32 %i2, 1
+  %14 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 1
+  %15 = load i32*, i32** %14
+  %16 = getelementptr inbounds i32, i32* %15, i32 %addtmp
+  %17 = load i32, i32* %16
+  %nequaltmp = icmp ne i32 %17, -1
+  br i1 %nequaltmp, label %then3, label %endif4
+
+break:                                            ; No predecessors!
+  br label %endif
+
+then3:                                            ; preds = %endif
+  call void @writeString(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @0, i32 0, i32 0))
+  br label %endif4
+
+endif4:                                           ; preds = %then3, %endif
+  %18 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  %i5 = load i32, i32* %18
+  %addtmp6 = add i32 %i5, 1
+  %19 = getelementptr %struct_printSet, %struct_printSet* %new_frame, i32 0, i32 2
+  store i32 %addtmp6, i32* %19
+  br label %loop
+}
+
+define i32 @log3binary(%struct_main* %previous, i32 %M, i32 %N) {
+entry:
+  %new_frame = alloca %struct_log3binary
+  %0 = alloca i32
+  %1 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %1
+  %2 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 1
+  store i32 %M, i32* %2
+  %3 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 2
+  store i32 %N, i32* %3
+  %4 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  store i32 0, i32* %4
+  %5 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 2
+  %N1 = load i32, i32* %5
+  %subtmp = sub i32 %N1, 1
+  %6 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 4
+  store i32 %subtmp, i32* %6
+  br label %loop
+
+return:                                           ; preds = %after_return27, %endif22, %then21, %then6
+  %7 = load i32, i32* %0
+  ret i32 %7
+
+loop:                                             ; preds = %endif13, %entry
+  %8 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l = load i32, i32* %8
+  %9 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 4
+  %r = load i32, i32* %9
+  %greaterorequaltmp = icmp sge i32 %l, %r
+  br i1 %greaterorequaltmp, label %then, label %endif
+
+after_loop:                                       ; preds = %then
+  %10 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l18 = load i32, i32* %10
+  %11 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 0
+  %previous19 = load %struct_main*, %struct_main** %11
+  %12 = getelementptr %struct_main, %struct_main* %previous19, i32 0, i32 1
+  %13 = getelementptr inbounds [15 x i32], [15 x i32]* %12, i32 0, i32 %l18
+  %14 = load i32, i32* %13
+  %15 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 1
+  %M20 = load i32, i32* %15
+  %lowerorequaltmp = icmp sle i32 %14, %M20
+  br i1 %lowerorequaltmp, label %then21, label %endif22
+
+then:                                             ; preds = %loop
+  br label %after_loop
+
+endif:                                            ; preds = %break, %loop
+  %16 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l2 = load i32, i32* %16
+  %17 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 4
+  %r3 = load i32, i32* %17
+  %addtmp = add i32 %l2, %r3
+  %divtmp = sdiv i32 %addtmp, 2
+  %18 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 5
+  store i32 %divtmp, i32* %18
+  %19 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 5
+  %mid = load i32, i32* %19
+  %20 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 0
+  %previous4 = load %struct_main*, %struct_main** %20
+  %21 = getelementptr %struct_main, %struct_main* %previous4, i32 0, i32 1
+  %22 = getelementptr inbounds [15 x i32], [15 x i32]* %21, i32 0, i32 %mid
+  %23 = load i32, i32* %22
+  %24 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 1
+  %M5 = load i32, i32* %24
+  %equaltmp = icmp eq i32 %23, %M5
+  br i1 %equaltmp, label %then6, label %endif7
+
+break:                                            ; No predecessors!
+  br label %endif
+
+then6:                                            ; preds = %endif
+  %25 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l8 = load i32, i32* %25
+  store i32 %l8, i32* %0
+  br label %return
+
+endif7:                                           ; preds = %after_return, %endif
+  %26 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 5
+  %mid9 = load i32, i32* %26
+  %27 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 0
+  %previous10 = load %struct_main*, %struct_main** %27
+  %28 = getelementptr %struct_main, %struct_main* %previous10, i32 0, i32 1
+  %29 = getelementptr inbounds [15 x i32], [15 x i32]* %28, i32 0, i32 %mid9
+  %30 = load i32, i32* %29
+  %31 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 1
+  %M11 = load i32, i32* %31
+  %greatertmp = icmp sgt i32 %30, %M11
+  br i1 %greatertmp, label %then12, label %else
+
+after_return:                                     ; No predecessors!
+  br label %endif7
+
+then12:                                           ; preds = %endif7
+  %32 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 5
+  %mid14 = load i32, i32* %32
+  %subtmp15 = sub i32 %mid14, 1
+  %33 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 4
+  store i32 %subtmp15, i32* %33
+  br label %endif13
+
+endif13:                                          ; preds = %else, %then12
+  br label %loop
+
+else:                                             ; preds = %endif7
+  %34 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 5
+  %mid16 = load i32, i32* %34
+  %addtmp17 = add i32 %mid16, 1
+  %35 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  store i32 %addtmp17, i32* %35
+  br label %endif13
+
+then21:                                           ; preds = %after_loop
+  %36 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l23 = load i32, i32* %36
+  store i32 %l23, i32* %0
+  br label %return
+
+endif22:                                          ; preds = %after_return24, %after_loop
+  %37 = getelementptr %struct_log3binary, %struct_log3binary* %new_frame, i32 0, i32 3
+  %l25 = load i32, i32* %37
+  %subtmp26 = sub i32 %l25, 1
+  store i32 %subtmp26, i32* %0
+  br label %return
+
+after_return24:                                   ; No predecessors!
+  br label %endif22
+
+after_return27:                                   ; No predecessors!
+  br label %return
+}
+
+define i32 @getSum(%struct_main* %previous, i32 %k) {
+entry:
+  %new_frame = alloca %struct_getSum
+  %0 = alloca i32
+  %1 = getelementptr %struct_getSum, %struct_getSum* %new_frame, i32 0, i32 0
+  store %struct_main* %previous, %struct_main** %1
+  %2 = getelementptr %struct_getSum, %struct_getSum* %new_frame, i32 0, i32 1
+  store i32 %k, i32* %2
+  %3 = getelementptr %struct_getSum, %struct_getSum* %new_frame, i32 0, i32 1
+  %k1 = load i32, i32* %3
+  %addtmp = add i32 %k1, 1
+  %4 = getelementptr %struct_getSum, %struct_getSum* %new_frame, i32 0, i32 0
+  %previous2 = load %struct_main*, %struct_main** %4
+  %5 = getelementptr %struct_main, %struct_main* %previous2, i32 0, i32 1
+  %6 = getelementptr inbounds [15 x i32], [15 x i32]* %5, i32 0, i32 %addtmp
+  %7 = load i32, i32* %6
+  %subtmp = sub i32 %7, 1
+  %divtmp = sdiv i32 %subtmp, 2
+  store i32 %divtmp, i32* %0
+  br label %return
+
+return:                                           ; preds = %after_return, %entry
+  %8 = load i32, i32* %0
+  ret i32 %8
+
+after_return:                                     ; No predecessors!
+  br label %return
 }

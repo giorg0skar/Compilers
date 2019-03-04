@@ -271,7 +271,7 @@ Type *translateType(Type_h type)
     if (equalType(type, typeChar))
         return i8;
     if (equalType(type, typeBoolean))
-        return i8;
+        return i1;
     if (equalType(type, typeVoid))
         return Type::getVoidTy(TheContext);
     if (isArray(type))
@@ -343,13 +343,13 @@ int time_to_leave = 0;
 //if we're in a condition we convert \x01 and \0 chars to true and false respectively
 void checkForBool(ast tr)
 {
-    if (equalType(tr->type, typeChar)) {
-        if (strcmp(tr->id, "\x01") == 0) tr->type = typeBoolean;
-        if ((tr->id)[0] == '\0') tr->type = typeBoolean;
-        if (tr->num == 1) {
-            tr->type = typeBoolean;
-        }
-    }
+    // if (equalType(tr->type, typeChar)) {
+    //     if ((tr->id)[0] == '\x01') tr->type = typeBoolean;
+    //     if ((tr->id)[0] == '\0') tr->type = typeBoolean;
+    //     if (tr->num == 1) {
+    //         tr->type = typeBoolean;
+    //     }
+    // }
     if (equalType(tr->type, typeInteger)) {
         if (tr->num == 0 || tr->num == 1) tr->type = typeBoolean;
     }
@@ -660,14 +660,11 @@ void ast_sem(ast t)
     {
         //printf("entered if\n");
         ast_sem(t->branch1);
-        checkForBool(t->branch1);
-        if (!equalType(t->branch1->type, typeBoolean)) {
-            // printf("type of %s is ", t->branch1->id);
-            // printType(t->branch1->type);
-            // printf("\n");
-            if (t->branch1->k != FUNC_CALL)
-                error("if expects a boolean condition");
-        }
+        // checkForBool(t->branch1);
+        // if (!equalType(t->branch1->type, typeBoolean) && !equalType(t->branch1->type, typeChar)) {
+        //     if (t->branch1->k != FUNC_CALL)
+        //         error("if expects a boolean condition");
+        // }
         ast_sem(t->branch2);
 
         ast_sem(t->branch3);
@@ -677,11 +674,11 @@ void ast_sem(ast t)
     {
         //printf("entered if else\n");
         ast_sem(t->branch1);
-        checkForBool(t->branch1);
-        if (!equalType(t->branch1->type, typeBoolean)) {
-            if (t->branch1->k != FUNC_CALL)
-                error("if expects a boolean condition");
-        }
+        // checkForBool(t->branch1);
+        // if ((!equalType(t->branch1->type, typeBoolean)) && (!equalType(t->branch1->type, typeChar))) {
+        //     if (t->branch1->k != FUNC_CALL)
+        //         error("if expects a boolean condition");
+        // }
         //openScope();
         ast_sem(t->branch2);
         //closeScope();
@@ -1184,7 +1181,7 @@ void ast_sem(ast t)
     case NOT:
     {
         ast_sem(t->branch2);
-        checkForBool(t->branch2);
+        //checkForBool(t->branch2);
         // if (!equalType(t->branch2->type, typeBoolean)) {
         //     printType(t->branch2->type);
         //     printf(" %s\n", t->branch2->id);
@@ -1196,9 +1193,9 @@ void ast_sem(ast t)
     case AND:
     {
         ast_sem(t->branch1);
-        checkForBool(t->branch1);
+        //checkForBool(t->branch1);
         ast_sem(t->branch2);
-        checkForBool(t->branch2);
+        //checkForBool(t->branch2);
         // if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
         //     error("type mismatch in and operator");
         t->type = typeBoolean;
@@ -1207,9 +1204,9 @@ void ast_sem(ast t)
     case OR:
     {
         ast_sem(t->branch1);
-        checkForBool(t->branch1);
+        //checkForBool(t->branch1);
         ast_sem(t->branch2);
-        checkForBool(t->branch2);
+        //checkForBool(t->branch2);
         // if ((!equalType(t->branch1->type, typeBoolean)) || (!equalType(t->branch2->type, typeBoolean)))
         //     error("type mismatch in or operator");
         t->type = typeBoolean;
@@ -1249,6 +1246,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in = operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case LT:
@@ -1285,6 +1283,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in < operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case GT:
@@ -1321,6 +1320,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in > operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case LE:
@@ -1357,6 +1357,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in <= operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case GE:
@@ -1393,6 +1394,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in >= operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case NEQ:
@@ -1429,6 +1431,7 @@ void ast_sem(ast t)
             else
                 error("type mismatch in <> operator");
         }
+        t->type = typeBoolean;
         return;
     }
     case EXPR_NOT:
@@ -1612,9 +1615,9 @@ Value *compile_function(ast f)
     if (params) {
         par_type = translateType(params->type);
         if (par_type->isArrayTy()) {
-            ArrayType *ar = cast<ArrayType>(par_type);
+            ArrayType *arr = cast<ArrayType>(par_type);
             //par_type = PointerType::get(par_type, 0);
-            par_type = PointerType::get(ar->getElementType(), 0);
+            par_type = PointerType::get(arr->getElementType(), 0);
         }
         for(ast temp=params->branch1; temp!=NULL; temp=temp->branch1) 
         {
@@ -1904,10 +1907,26 @@ Value *ast_compile(ast t)
             cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            if (t->branch1->k == FUNC_CALL) {
-                if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
-                else if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
-            }
+            // if (t->branch1->k == FUNC_CALL) {
+            //     if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            //     if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            //     else {
+            //         printType(t->branch1->type);
+            //         printf("\n");
+            //         error("not supposed to happen");
+            //     }
+            // }
+            // else {
+            //     if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            //     else if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            //     else {
+            //         cond = v;
+            //     }
+            // }
+            Type *ty = translateType(t->branch1->type);
+            if (ty->isIntegerTy(32)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            else if (ty->isIntegerTy(8)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            else if (ty->isIntegerTy(1)) cond = v;
             else cond = v;
         }
 
@@ -1936,10 +1955,10 @@ Value *ast_compile(ast t)
                 cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
             }
             else {
-                if (elif_node->branch1->k == FUNC_CALL) {
-                    if (equalType(elif_node->branch1->type, typeInteger)) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
-                    else if (equalType(elif_node->branch1->type, typeChar)) cond1 = Builder.CreateICmpNE(val, c8(0), "elif_cond");
-                }
+                Type *ty = translateType(elif_node->branch1->type);
+                if (ty->isIntegerTy(32)) cond1 = Builder.CreateICmpNE(val, c32(0), "if_cond");
+                else if (ty->isIntegerTy(8)) cond1 = Builder.CreateICmpNE(val, c8(0), "if_cond");
+                else if (ty->isIntegerTy(1)) cond1 = val;
                 else cond1 = val;
             }
 
@@ -1964,23 +1983,16 @@ Value *ast_compile(ast t)
         Value *v = ast_compile(t->branch1);
 
         //if Value v is a condition we don't need to do one more comparison. if it's a numerical value the comparison is needed
-        // if (equalType(t->branch1->type, typeBoolean)) {
-        //     cond = v;
-        // }
-        // else {
-        //     cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
-        // }
-
         ConstantInt *CI;
         if (CI = dyn_cast<ConstantInt>(v) ) {
             int num = CI->getSExtValue();
             cond = Builder.CreateICmpNE(c32(num), c32(0), "if_cond");
         }
         else {
-            if (t->branch1->k == FUNC_CALL) {
-                if (equalType(t->branch1->type, typeInteger)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
-                else if (equalType(t->branch1->type, typeChar)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
-            }
+            Type *ty = translateType(t->branch1->type);
+            if (ty->isIntegerTy(32)) cond = Builder.CreateICmpNE(v, c32(0), "if_cond");
+            else if (ty->isIntegerTy(8)) cond = Builder.CreateICmpNE(v, c8(0), "if_cond");
+            else if (ty->isIntegerTy(1)) cond = v;
             else cond = v;
         }
         
@@ -2010,10 +2022,10 @@ Value *ast_compile(ast t)
                 cond1 = Builder.CreateICmpNE(c32(num), c32(0), "elif_cond");
             }
             else {
-                if (elif_node->branch1->k == FUNC_CALL) {
-                    if (equalType(elif_node->branch1->type, typeInteger)) cond1 = Builder.CreateICmpNE(val, c32(0), "elif_cond");
-                    else if (equalType(elif_node->branch1->type, typeChar)) cond1 = Builder.CreateICmpNE(val, c8(0), "elif_cond");
-                }
+                Type *ty = translateType(elif_node->branch1->type);
+                if (ty->isIntegerTy(32)) cond1 = Builder.CreateICmpNE(val, c32(0), "if_cond");
+                else if (ty->isIntegerTy(8)) cond1 = Builder.CreateICmpNE(val, c8(0), "if_cond");
+                else if (ty->isIntegerTy(1)) cond1 = val;
                 else cond1 = val;
             }
 
@@ -2282,10 +2294,8 @@ Value *ast_compile(ast t)
         std::vector<Value *> idxlist;
         idxlist.push_back(val);
         ast temp;
+        //loop until we reach the base node. we store the index for each array dimension
         for(temp = t->branch1; temp->branch1 != NULL; temp=temp->branch1) {
-            //loop until we reach the base node. we store the index for each array dimension
-            // if (isPointer(temp->branch2->type)) loadByReference = 1;
-            // else loadByReference = 0;
             idxlist.push_back(ast_compile(temp->branch2));
         }
 

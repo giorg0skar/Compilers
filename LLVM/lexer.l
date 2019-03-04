@@ -235,7 +235,7 @@ ASCII {singlequote}{1}{asciichar}{singlequote}{1}
 {Id}			{ yylval.s = strdup(yytext); isNextEOF(); return T_id; }
 
 {EscapeChar}	{ yylval.c = checkForEscapeChars(yytext[2]); isNextEOF(); return T_char; }
-{ASCII}			{ isNextEOF(); return T_char; }
+{ASCII}			{ yylval.c = createASCII(yytext[3], yytext[4]); isNextEOF(); return T_char; }
 "\r"				{ isNextEOF(); /* nothing */}
 
  /*\n			{ linenumber++; } */
@@ -272,11 +272,13 @@ int hex2int(char ch)
     return -1;
 }
 
-// char checkForASCII(char ch1, char ch2) {
-// 	int n1 = hex2int(ch1);
-// 	int n2 = hex2int(ch2);
-// 	int decimal_num = n1 + n2;
-// }
+char createASCII(char ch1, char ch2) {
+	int n1 = hex2int(ch1);
+	int n2 = hex2int(ch2);
+	int decimal_num = n1*16 | n2;
+	char c = (char) decimal_num;
+	return c;
+}
 
 char checkForEscapeChars(char c) {
 	char next = c;
