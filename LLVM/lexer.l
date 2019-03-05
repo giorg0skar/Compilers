@@ -69,6 +69,7 @@ void push(int element);
 void isNextEOF(void);
 char checkForEscapeChars(char c);
 int hex2int(char ch);
+char createASCII(char ch1, char ch2);
 void yyerror (const char *msg);
 %}
 
@@ -82,7 +83,7 @@ doublequote \"
 asciichar \x[0-9a-fA-F][0-9a-fA-F]
 Char {singlequote}{1}.{singlequote}{1}
 EscapeChar {singlequote}{1}"\\"[ntr0]{singlequote}{1}
-ASCII {singlequote}{1}{asciichar}{singlequote}{1}
+ASCII {singlequote}{1}"\\x"[0-9a-fA-F][0-9a-fA-F]{singlequote}{1}
 
 %x SLCOMMENT
 %x MLCOMMENT
@@ -275,7 +276,7 @@ int hex2int(char ch)
 char createASCII(char ch1, char ch2) {
 	int n1 = hex2int(ch1);
 	int n2 = hex2int(ch2);
-	int decimal_num = n1*16 | n2;
+	int decimal_num = (n1*16) | n2;
 	char c = (char) decimal_num;
 	return c;
 }

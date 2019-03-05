@@ -9,7 +9,10 @@
 CXXFLAGS=-Wall -g -std=c++11 `llvm-config --cxxflags`
 LDFLAGS=`llvm-config --cxxflags --ldflags --libs all --system-libs`
 
-default: dana
+all: dana libs
+
+libs: 
+	cd edsger_lib; bash libs.sh
 
 parser.hpp parser.cpp: parser.y
 	bison -dv -o parser.cpp parser.y

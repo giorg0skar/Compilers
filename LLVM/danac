@@ -1,0 +1,49 @@
+#!/bin/bash
+
+Oflag=0
+irout=false
+asmout=false
+file=""
+
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -O0) Oflag=0;;
+        -O1) Oflag=1;;
+        -O2) Oflag=2;;
+        -O3) Oflag=3;;
+        -f)  asmout=true;;
+        -i)  irout=true;;
+        -*)  ;;
+        *)   file="$1";;
+    esac
+    shift
+
+done
+
+optflag=""
+if [ $Oflag -ne 0 ]; 
+then
+    optflag=-O$Oflag
+fi
+
+irfile="$file.ll"
+asmfile="$file.s"
+
+#compile the input file
+echo "Compiling $file"
+./dana < $file > 1.ll || exit 1
+opt $optflag 1.ll -S -o a.ll
+rm 1.ll
+if [ "$irout" = true ] 
+then
+    exit 0
+fi
+llc $optflag a.ll -o a.s
+if [ "$asmout" = true ] 
+then
+    exit 0
+fi
+clang a.s ./edsger_lib/lib.a -o a.out
+#rm 1.ll
+exit 0

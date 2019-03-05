@@ -266,9 +266,6 @@ Type_h type_create(Type_h base) {
     Type_h th = typeArray((*it), arrtype);
     arrtype = th;
   }
-  //array_dims.clear();
-  //printType(arrtype);
-  //printf("\n");
   return arrtype;
 }
 

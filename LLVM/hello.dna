@@ -8,13 +8,15 @@ def main is int
     var x is int
     #y := "door"
     x := 0
-    loop:
+    (*loop:
         if x >= 5: break
         y[x] := x
         x := x + 1
     
     x := 2
-    g: y, x
+    g: y, x*)
+    writeChar: '\x40'
+    writeChar: '\n'
     
     return: 0
 

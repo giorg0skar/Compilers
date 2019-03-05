@@ -356,13 +356,6 @@ void checkForBool(ast tr)
     return;
 }
 
-// int isBoolean(ast tr) {
-//     if (equalType(tr->type, typeChar)) {
-//         if (strcmp(tr->id, "\x01") == 0) return 1;
-//         if ((tr->id)[0] == '\0') return 1;
-//     }
-//     return 0;
-// }
 
 void ast_sem(ast t)
 {
@@ -2655,11 +2648,15 @@ void llvm_compile_and_dump(ast t)
     // Initialize the module and the optimization passes.
     TheModule = make_unique<Module>("dana program", TheContext);
     TheFPM = make_unique<legacy::FunctionPassManager>(TheModule.get());
-    // TheFPM->add(createPromoteMemoryToRegisterPass());
-    // TheFPM->add(createInstructionCombiningPass());
-    // TheFPM->add(createReassociatePass());
-    // TheFPM->add(createGVNPass());
-    // TheFPM->add(createCFGSimplificationPass());
+    TheFPM->add(createPromoteMemoryToRegisterPass());
+    TheFPM->add(createInstructionCombiningPass());
+    TheFPM->add(createReassociatePass());
+    TheFPM->add(createGVNPass());
+    TheFPM->add(createCFGSimplificationPass());
+    TheFPM->add(createConstantPropagationPass());
+    TheFPM->add(createLoopUnrollPass());
+    TheFPM->add(createDeadCodeEliminationPass());
+    TheFPM->add(createDeadInstEliminationPass());
     TheFPM->doInitialization();
 
     declare_library_functions();
@@ -2671,7 +2668,7 @@ void llvm_compile_and_dump(ast t)
     // Builder.SetInsertPoint(BB);
 
     //we initialize the global current_AR
-    current_AR = StructType::create(TheContext, "dummy");
+    current_AR = StructType::create(TheContext, "start");
     //currentAlloca = Builder.CreateAlloca(current_AR, 0, "");
     // Emit the program code.
     ast_compile(t);
