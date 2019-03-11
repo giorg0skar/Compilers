@@ -28,9 +28,30 @@ then
     optflag=-O$Oflag
 fi
 
+if [ $file == "" ];
+then
+    ./dana > 1.ll || exit 1
+    opt $optflag 1.ll -S -o a.ll
+    rm 1.ll
+    if [ "$createir" = true ] 
+    then
+        if [ "$createasm" = false ]
+        then
+            exit 0
+        fi
+    fi
+    llc $optflag a.ll -o a.s
+    if [ "$createasm" = true ] 
+    then
+        exit 0
+    fi
+    clang a.s ./edsger_lib/lib.a -o a.out
+    exit 0
+fi
+
 #name=$(echo $file| cut -d'.' -f 1 )
 name=${file::-4}
-echo $name
+#echo $name
 irfile="$name.ll"
 asmfile="$name.s"
 

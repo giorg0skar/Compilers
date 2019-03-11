@@ -20,14 +20,14 @@ parser.hpp parser.cpp: parser.y
 lexer.cpp: lexer.l
 	flex -s -o lexer.cpp lexer.l
 
-parser.o: parser.cpp parser.hpp MYast.hpp
+parser.o: parser.cpp parser.hpp ast.hpp
 	$(CXX) $(CXXFLAGS) -c parser.cpp
 
 lexer.o: lexer.cpp parser.hpp
 	$(CXX) $(CXXFLAGS) -c lexer.cpp
 
-MYast.o: MYast.cpp MYast.hpp
-	$(CXX) $(CXXFLAGS) -c MYast.cpp
+ast.o: ast.cpp ast.hpp
+	$(CXX) $(CXXFLAGS) -c ast.cpp
 
 symbol.o: symbol.c symbol.h
 	gcc -c -Wall -g symbol.c
@@ -37,7 +37,7 @@ symbol.o: symbol.c symbol.h
 
 
 
-dana: lexer.o parser.o MYast.o symbol.o error.o general.o
+dana: lexer.o parser.o ast.o symbol.o error.o general.o
 	$(CXX) $(CXXFLAGS) -o dana $^ $(LDFLAGS)
 
 clean:

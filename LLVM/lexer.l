@@ -9,7 +9,7 @@ static int input (void );
 #endif
 
 #include <stdio.h>
-#include "MYast.hpp"
+#include "ast.hpp"
 #include "parser.hpp"
 // #include "symbol.h"
 //#include "y.tab.h"
@@ -62,7 +62,7 @@ int spacecounter=0;
 int blockcounter=0;
 int newline_block = 0;		//if set then the following block begins in the next line
 int sameline_block = 0;		//if set then the following block begins in the same line after character ':'
-int mystack[1000];			//stack contains how right in the editor each block starts
+int mystack[100000];		//stack contains how right in the editor each block starts
 int sp = -1;                 //sp points to the latest element pushed into the stack
 
 void push(int element);
