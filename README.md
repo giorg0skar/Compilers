@@ -11,7 +11,7 @@ Full compiler in LLVM directory. To build:
 ``make``
 
 # Execute
-```
+```bash
 ./danac input.dna [flags]
 ```
 
