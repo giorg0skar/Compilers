@@ -12,12 +12,9 @@ Full compiler in LLVM directory. To build:
 
 # Execute
 
-```
-    ./danac [input file] [flags]
-    ./a.out
-```
+> ./danac input.dna [flags]
 
-input file: name of the input file (must end in .dna)
+The executable file's name is  `a.out`.
 
 flags:
 * -r : create IR file in output
@@ -26,4 +23,4 @@ flags:
 * -O2: optimization flag
 * -O3: optimization flag
 
-If **-r** or **-f** flags are chosen there is no a.out executable file. Instead a [input file].ll or [input file].s are created respectively.
+If **-r** or **-f** flags are chosen there is no executable file. Instead an `input.ll` or `input.s` are created respectively.
