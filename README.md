@@ -5,17 +5,19 @@ Dana is a programming language supporting static type safety, low level programm
 
 # Building
 Full compiler in LLVM directory. To build:
-```shellscript
-    cd LLVM
-    make
-```
+
+``cd LLVM``
+
+``make``
 
 # Execute
 
-```shellscript
+```
     ./danac [input file] [flags]
     ./a.out
 ```
+
+input file: name of the input file (must end in .dna)
 
 flags:
 * -r : create IR file in output
