@@ -11,16 +11,17 @@ Full compiler in LLVM directory. To build:
 ``make``
 
 # Execute
-
-> ./danac input.dna [flags]
+```
+./danac input.dna [flags]
+```
 
 The executable file's name is  `a.out`.
 
-flags:
-* -r : create IR file in output
-* -f : create assembly file in output
+The danac executable supports the following flags:
+* -r : create LLVM IR file in output
+* -f : create x86_64 assembly file in output
 * -O1: optimization flag
 * -O2: optimization flag
 * -O3: optimization flag
 
-If **-r** or **-f** flags are chosen there is no executable file. Instead an `input.ll` or `input.s` are created respectively.
+If **-r** or **-f** flags are chosen there is no executable file. Instead an `input.ll` or `input.s` file is created respectively.
