@@ -8,18 +8,18 @@ default: dana
 lexer.c: lexer.l
 	flex -s -o lexer.c lexer.l
 
-lexer.o: lexer.c tryparser.h
+lexer.o: lexer.c parser.h
 
-tryparser.h tryparser.c: tryparser.y
-	bison -dv -o tryparser.c tryparser.y
+parser.h parser.c: parser.y
+	bison -dv -o parser.c parser.y
 
-tryparser.o: tryparser.c
+parser.o: parser.c
 
-dana: lexer.o tryparser.o
+dana: lexer.o parser.o
 	$(CC) $(CFLAGS) -o dana $^ -lfl
 
 clean:
-	$(RM) lexer.c tryparser.c tryparser.h tryparser.output *.o *~
+	$(RM) lexer.c parser.c parser.h parser.output *.o *~
 
 distclean: clean
 	$(RM) dana
